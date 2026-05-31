@@ -102,7 +102,6 @@ export default function LMSLogin() {
                   background: "#f4f7fb",
                   border: "1px solid rgba(26,58,107,0.15)",
                   color: "#1a3a6b",
-                  focusRingColor: "#1a3a6b",
                 }}
               />
             </div>
