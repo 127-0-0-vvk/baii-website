@@ -1,0 +1,175 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-dm-sans);
+  --font-display: var(--font-playfair);
+
+  /* BAII Brand Colors */
+  --color-navy-950: #080f1e;
+  --color-navy-900: #0d1f3c;
+  --color-navy-800: #1a3a6b;
+  --color-navy-700: #1e4480;
+  --color-navy-600: #235098;
+  --color-navy-500: #2a5fb5;
+  --color-copper-900: #7a4a18;
+  --color-copper-800: #a0601f;
+  --color-copper-700: #b87022;
+  --color-copper-600: #c47d2a;
+  --color-copper-500: #d4913a;
+  --color-copper-400: #e0a84e;
+  --color-copper-300: #e8be72;
+  --color-ashoka: #4a9fd4;
+  --color-gold: #f0c040;
+}
+
+:root {
+  --background: #0d1f3c;
+  --foreground: #f0f4ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0d1f3c;
+}
+::-webkit-scrollbar-thumb {
+  background: #c47d2a;
+  border-radius: 3px;
+}
+
+/* Selection */
+::selection {
+  background: rgba(196, 125, 42, 0.4);
+  color: #fff;
+}
+
+/* Circuit pattern background */
+.circuit-bg {
+  background-image:
+    radial-gradient(circle at 25% 25%, rgba(196, 125, 42, 0.06) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, rgba(74, 159, 212, 0.06) 0%, transparent 50%),
+    linear-gradient(0deg, transparent 24%, rgba(255,255,255,0.02) 25%, rgba(255,255,255,0.02) 26%, transparent 27%, transparent 74%, rgba(255,255,255,0.02) 75%, rgba(255,255,255,0.02) 76%, transparent 77%),
+    linear-gradient(90deg, transparent 24%, rgba(255,255,255,0.02) 25%, rgba(255,255,255,0.02) 26%, transparent 27%, transparent 74%, rgba(255,255,255,0.02) 75%, rgba(255,255,255,0.02) 76%, transparent 77%);
+  background-size: 100% 100%, 100% 100%, 60px 60px, 60px 60px;
+}
+
+/* Glow effects */
+.glow-copper {
+  box-shadow: 0 0 40px rgba(196, 125, 42, 0.3), 0 0 80px rgba(196, 125, 42, 0.1);
+}
+
+.glow-navy {
+  box-shadow: 0 0 40px rgba(26, 58, 107, 0.6), 0 0 80px rgba(26, 58, 107, 0.3);
+}
+
+.text-glow-copper {
+  text-shadow: 0 0 30px rgba(196, 125, 42, 0.5);
+}
+
+.text-glow-white {
+  text-shadow: 0 0 40px rgba(255, 255, 255, 0.3);
+}
+
+/* Glass card */
+.glass {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-copper {
+  background: rgba(196, 125, 42, 0.08);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(196, 125, 42, 0.2);
+}
+
+/* Gradient text */
+.gradient-text-copper {
+  background: linear-gradient(135deg, #c47d2a 0%, #e8be72 50%, #c47d2a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-blue {
+  background: linear-gradient(135deg, #4a9fd4 0%, #a0c8e8 50%, #4a9fd4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Animated gradient border */
+.border-gradient {
+  position: relative;
+}
+.border-gradient::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(196,125,42,0.6), rgba(74,159,212,0.2), rgba(196,125,42,0.6));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+/* Pulse animation */
+@keyframes pulse-copper {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 20s linear infinite;
+}
+
+.shimmer-text {
+  background: linear-gradient(90deg, #c47d2a 25%, #e8be72 50%, #c47d2a 75%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 3s linear infinite;
+}
