@@ -1,14 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import CourseSection from "./CourseSection";
 
 export default function LandingPage() {
-  const [hovered, setHovered] = useState(false);
+  const [enrollHovered, setEnrollHovered] = useState(false);
+  const [loginHovered, setLoginHovered] = useState(false);
+  const router = useRouter();
+
+  const scrollToCourses = () =>
+    document.getElementById("courses")?.scrollIntoView({ behavior: "smooth" });
 
   return (
     <div className="min-h-screen overflow-x-hidden">
+      {/* ── HERO ─────────────────────────────────────────────────── */}
       <section
         className="relative min-h-screen flex flex-col items-center overflow-hidden"
         style={{
@@ -25,14 +32,13 @@ export default function LandingPage() {
             backgroundSize: "60px 60px",
           }}
         />
-
         {/* Copper glow at bottom */}
         <div
           className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full blur-[120px] pointer-events-none"
           style={{ background: "rgba(196,125,42,0.10)" }}
         />
 
-        {/* ── Logo — top, fully blended ── */}
+        {/* Logo */}
         <motion.div
           initial={{ opacity: 0, scale: 0.88 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -43,26 +49,19 @@ export default function LandingPage() {
           <img
             src="/baii-logo.svg"
             alt="BAII — Bharat Advanced Innovation Incubator"
-            style={{
-              width: "clamp(110px, 18vw, 260px)",
-              height: "auto",
-            }}
+            style={{ width: "clamp(110px, 18vw, 260px)", height: "auto" }}
           />
         </motion.div>
 
-        {/* ── Text + button ── */}
+        {/* Text + buttons */}
         <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-4xl mx-auto w-full flex-1 justify-center mt-[-30vw]">
-
           {/* Org name */}
           <motion.p
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.28 }}
             className="font-bold tracking-[0.22em] uppercase mb-5"
-            style={{
-              fontSize: "clamp(0.55rem, 1.1vw, 0.75rem)",
-              color: "#1a3a6b",
-            }}
+            style={{ fontSize: "clamp(0.55rem, 1.1vw, 0.75rem)", color: "#1a3a6b" }}
           >
             Bharat Advanced Innovation Incubator
           </motion.p>
@@ -99,48 +98,79 @@ export default function LandingPage() {
             Where India&apos;s builders are made.
           </motion.p>
 
-          {/* Enroll Now button */}
-          <motion.button
+          {/* Buttons row */}
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.72 }}
-            onHoverStart={() => setHovered(true)}
-            onHoverEnd={() => setHovered(false)}
-            whileTap={{ scale: 0.97 }}
-            className="relative overflow-hidden rounded-full font-semibold tracking-wide"
-            style={{
-              fontSize: "clamp(0.82rem, 1.4vw, 0.95rem)",
-              padding: "clamp(10px, 1.4vw, 14px) clamp(28px, 4vw, 48px)",
-              color: hovered ? "#0d1f3c" : "#ffffff",
-              background: "transparent",
-              border: "1.5px solid rgba(255,255,255,0.75)",
-              transition: "color 0.35s ease",
-            }}
+            className="flex items-center gap-4"
           >
-            {/* Fill on hover */}
-            <motion.span
-              className="absolute inset-0 rounded-full"
-              style={{ background: "#ffffff", originX: 0 }}
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: hovered ? 1 : 0 }}
-              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            />
-
-            {/* Animated border glow */}
-            <motion.span
-              className="absolute inset-0 rounded-full pointer-events-none"
+            {/* Enroll Now */}
+            <motion.button
+              onHoverStart={() => setEnrollHovered(true)}
+              onHoverEnd={() => setEnrollHovered(false)}
+              whileTap={{ scale: 0.97 }}
+              onClick={scrollToCourses}
+              className="relative overflow-hidden rounded-full font-semibold tracking-wide"
               style={{
-                boxShadow: hovered
-                  ? "0 0 18px rgba(255,255,255,0.45), inset 0 0 12px rgba(255,255,255,0.08)"
-                  : "0 0 0px rgba(255,255,255,0)",
-                transition: "box-shadow 0.35s ease",
+                fontSize: "clamp(0.78rem, 1.3vw, 0.9rem)",
+                padding: "clamp(10px, 1.3vw, 13px) clamp(26px, 3.5vw, 44px)",
+                color: enrollHovered ? "#0d1f3c" : "#ffffff",
+                background: "transparent",
+                border: "1.5px solid rgba(255,255,255,0.75)",
+                transition: "color 0.35s ease",
               }}
-            />
+            >
+              <motion.span
+                className="absolute inset-0 rounded-full"
+                style={{ background: "#ffffff", originX: 0 }}
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: enrollHovered ? 1 : 0 }}
+                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              />
+              <motion.span
+                className="absolute inset-0 rounded-full pointer-events-none"
+                style={{
+                  boxShadow: enrollHovered
+                    ? "0 0 18px rgba(255,255,255,0.4), inset 0 0 10px rgba(255,255,255,0.07)"
+                    : "none",
+                  transition: "box-shadow 0.35s ease",
+                }}
+              />
+              <span className="relative z-10">Enroll Now</span>
+            </motion.button>
 
-            <span className="relative z-10">Enroll Now</span>
-          </motion.button>
+            {/* Login */}
+            <motion.button
+              onHoverStart={() => setLoginHovered(true)}
+              onHoverEnd={() => setLoginHovered(false)}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => router.push("/lms")}
+              className="relative overflow-hidden rounded-full font-semibold tracking-wide"
+              style={{
+                fontSize: "clamp(0.78rem, 1.3vw, 0.9rem)",
+                padding: "clamp(10px, 1.3vw, 13px) clamp(26px, 3.5vw, 44px)",
+                color: loginHovered ? "#ffffff" : "rgba(255,255,255,0.6)",
+                background: "transparent",
+                border: "1.5px solid rgba(255,255,255,0.25)",
+                transition: "color 0.3s ease",
+              }}
+            >
+              <motion.span
+                className="absolute inset-0 rounded-full"
+                style={{ background: "rgba(255,255,255,0.08)", originX: 0 }}
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: loginHovered ? 1 : 0 }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              />
+              <span className="relative z-10">Login</span>
+            </motion.button>
+          </motion.div>
         </div>
       </section>
+
+      {/* ── COURSE SECTION ───────────────────────────────────────── */}
+      <CourseSection />
     </div>
   );
 }
