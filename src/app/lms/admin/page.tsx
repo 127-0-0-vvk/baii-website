@@ -69,6 +69,7 @@ export default function AdminDashboard() {
   const [createLoading, setCreateLoading] = useState(false);
   const [createSuccess, setCreateSuccess] = useState(false);
   const [createError, setCreateError] = useState("");
+  const [createdCredentials, setCreatedCredentials] = useState<{email:string;password:string;full_name:string;emailSent:boolean}|null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -112,6 +113,7 @@ export default function AdminDashboard() {
     if (!res.ok) {
       setCreateError(json.error ?? "Failed to create user");
     } else {
+      setCreatedCredentials({ ...json.credentials, emailSent: json.emailSent });
       setCreateSuccess(true);
       fetchData();
     }
@@ -402,21 +404,44 @@ export default function AdminDashboard() {
               </button>
 
               {createSuccess ? (
-                <div className="text-center py-4">
-                  <CheckCircle2 size={40} className="mx-auto mb-3" style={{ color: "#c47d2a" }} />
-                  <h3 className="text-white font-bold text-lg mb-1" style={{ fontFamily: "var(--font-playfair)" }}>
-                    Account Created!
-                  </h3>
-                  <p className="text-white/50 text-sm">
-                    Login credentials have been sent to{" "}
-                    <span className="text-white">{newUser.email}</span>.
+                <div className="py-2">
+                  <div className="flex items-center gap-3 mb-4">
+                    <CheckCircle2 size={28} style={{ color: "#4ade80" }} />
+                    <div>
+                      <h3 className="text-white font-bold text-base" style={{ fontFamily: "var(--font-playfair)" }}>Account Created!</h3>
+                      <p className="text-white/40 text-xs">{createdCredentials?.full_name}</p>
+                    </div>
+                  </div>
+
+                  {/* Credentials box — always shown */}
+                  <div className="rounded-xl p-4 mb-4 space-y-3" style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <div>
+                      <p className="text-white/40 text-[10px] uppercase tracking-widest mb-1">Login URL</p>
+                      <p className="text-copper-400 text-sm font-semibold" style={{ color: "#c47d2a" }}>baii.in/lms</p>
+                    </div>
+                    <div>
+                      <p className="text-white/40 text-[10px] uppercase tracking-widest mb-1">Email</p>
+                      <p className="text-white text-sm font-mono">{createdCredentials?.email}</p>
+                    </div>
+                    <div>
+                      <p className="text-white/40 text-[10px] uppercase tracking-widest mb-1">Password</p>
+                      <p className="text-white text-sm font-mono font-bold bg-white/10 rounded px-2 py-1 inline-block tracking-wider">{createdCredentials?.password}</p>
+                    </div>
+                  </div>
+
+                  {/* Email status */}
+                  <p className="text-xs mb-4 flex items-center gap-2" style={{ color: createdCredentials?.emailSent ? "#4ade80" : "#f97316" }}>
+                    {createdCredentials?.emailSent ? "✓ Credentials emailed to student" : "⚠ Email not sent — share credentials above manually"}
                   </p>
+
                   <button
                     onClick={() => {
                       setCreateModal(false);
+                      setCreateSuccess(false);
+                      setCreatedCredentials(null);
                       setNewUser({ full_name: "", email: "", password: "", phone: "", school: "", city: "" });
                     }}
-                    className="mt-5 px-6 py-2 rounded-lg text-sm font-semibold text-white"
+                    className="w-full py-2.5 rounded-xl text-sm font-semibold text-white"
                     style={{ background: "linear-gradient(135deg, #c47d2a, #d4913a)" }}
                   >
                     Done
