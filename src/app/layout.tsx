@@ -18,12 +18,15 @@ const playfair = Playfair_Display({
 export const metadata: Metadata = {
   title: "BAII — Bharat Advanced Innovation Incubator",
   description:
-    "India's first applied innovation incubator for post-10th students. Build the future in Energy & Semiconductors.",
+    "India's first applied innovation incubator. Real programmes, real labs, real outcomes.",
   keywords: ["BAII", "innovation", "India", "energy", "semiconductors", "incubator", "students"],
+  icons: {
+    icon: "/favicon.png",
+    apple: "/favicon.png",
+  },
   openGraph: {
     title: "BAII — Bharat Advanced Innovation Incubator",
-    description:
-      "India's first applied innovation incubator for post-10th students.",
+    description: "Real programmes. Real labs. Real outcomes.",
     type: "website",
   },
 };
