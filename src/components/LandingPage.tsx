@@ -51,7 +51,7 @@ export default function LandingPage() {
         </motion.div>
 
         {/* ── Text + button ── */}
-        <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-4xl mx-auto w-full flex-1 justify-center mt-[-10vw]">
+        <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-4xl mx-auto w-full flex-1 justify-center mt-[-30vw]">
 
           {/* Org name */}
           <motion.p
