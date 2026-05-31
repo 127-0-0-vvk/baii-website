@@ -82,12 +82,13 @@ export default function AdminDashboard() {
   }, [supabase]);
 
   useEffect(() => {
-    // Auth guard
     supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) { router.push("/lms"); return; }
-      supabase.from("profiles").select("role").eq("id", data.user.id).single()
+      if (!data.user) { router.push('/lms'); return; }
+      let role = data.user.user_metadata?.role as string | undefined;
+      supabase.from('profiles').select('role').eq('id', data.user.id).single()
         .then(({ data: p }) => {
-          if (p?.role !== "admin") router.push("/lms/student");
+          if (p?.role) role = p.role;
+          if (role !== 'admin') router.push('/lms/student');
           else fetchData();
         });
     });
@@ -157,7 +158,7 @@ export default function AdminDashboard() {
         }}
       >
         <div className="flex items-center gap-3">
-          <Image src="/baii-logo.svg" alt="BAII" width={36} height={36} style={{ width: 36, height: "auto" }} />
+          <img src="/baii-logo.svg" alt="BAII" style={{ width: 36, height: "auto" }} />
           <div>
             <p className="text-white font-semibold text-sm leading-tight">BAII Admin</p>
             <div className="flex items-center gap-1">

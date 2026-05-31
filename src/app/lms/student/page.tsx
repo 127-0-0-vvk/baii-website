@@ -61,7 +61,7 @@ export default function StudentDashboard() {
         }}
       >
         <div className="flex items-center gap-3">
-          <Image src="/baii-logo.svg" alt="BAII" width={36} height={36} style={{ width: 36, height: "auto" }} />
+          <img src="/baii-logo.svg" alt="BAII" style={{ width: 36, height: "auto" }} />
           <div>
             <p className="text-white font-semibold text-sm leading-tight">BAII Student Portal</p>
             <p className="text-white/40 text-xs">{profile?.email}</p>

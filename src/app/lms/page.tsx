@@ -4,7 +4,6 @@ export const dynamic = "force-dynamic";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -22,36 +21,32 @@ export default function LMSLogin() {
     setLoading(true);
     setError("");
     const supabase = createClient();
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+
+    const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
     if (authError) {
       setError(authError.message);
       setLoading(false);
       return;
     }
-    // Fetch role
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", data.user.id)
-      .single();
 
-    if (profile?.role === "admin") {
-      router.push("/lms/admin");
-    } else {
-      router.push("/lms/student");
-    }
+    // Try profiles table first; fall back to user_metadata for resilience
+    let role = data.user.user_metadata?.role as string | undefined;
+    try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", data.user.id)
+        .single();
+      if (profile?.role) role = profile.role;
+    } catch { /* profiles table may not exist yet */ }
+
+    router.push(role === "admin" ? "/lms/admin" : "/lms/student");
   };
 
   return (
     <div
       className="min-h-screen flex items-center justify-center px-4"
-      style={{
-        background:
-          "linear-gradient(135deg, #080f1e 0%, #0d1f3c 50%, #080f1e 100%)",
-      }}
+      style={{ background: "linear-gradient(135deg, #080f1e 0%, #0d1f3c 50%, #080f1e 100%)" }}
     >
       {/* Ambient glow */}
       <div
@@ -65,7 +60,6 @@ export default function LMSLogin() {
         transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
         className="relative w-full max-w-sm"
       >
-        {/* Card */}
         <div
           className="rounded-2xl p-8"
           style={{
@@ -74,13 +68,12 @@ export default function LMSLogin() {
             backdropFilter: "blur(20px)",
           }}
         >
-          {/* Logo */}
+          {/* Logo — same SVG as main hero, no white border */}
           <div className="flex justify-center mb-6">
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src="/baii-logo.svg"
               alt="BAII"
-              width={64}
-              height={64}
               style={{ width: 64, height: "auto" }}
             />
           </div>
@@ -97,27 +90,20 @@ export default function LMSLogin() {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="text-white/50 text-xs mb-1.5 block">
-                Email
-              </label>
+              <label className="text-white/50 text-xs mb-1.5 block">Email</label>
               <input
                 required
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full rounded-lg px-3.5 py-2.5 text-white text-sm placeholder:text-white/25 focus:outline-none transition-colors"
-                style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                }}
+                className="w-full rounded-lg px-3.5 py-2.5 text-white text-sm placeholder:text-white/25 focus:outline-none"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
               />
             </div>
 
             <div>
-              <label className="text-white/50 text-xs mb-1.5 block">
-                Password
-              </label>
+              <label className="text-white/50 text-xs mb-1.5 block">Password</label>
               <div className="relative">
                 <input
                   required
@@ -125,16 +111,13 @@ export default function LMSLogin() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full rounded-lg px-3.5 py-2.5 pr-10 text-white text-sm placeholder:text-white/25 focus:outline-none transition-colors"
-                  style={{
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                  }}
+                  className="w-full rounded-lg px-3.5 py-2.5 pr-10 text-white text-sm placeholder:text-white/25 focus:outline-none"
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
                 >
                   {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
@@ -142,19 +125,15 @@ export default function LMSLogin() {
             </div>
 
             {error && (
-              <p className="text-red-400 text-xs bg-red-400/10 rounded-lg px-3 py-2">
-                {error}
-              </p>
+              <p className="text-red-400 text-xs bg-red-400/10 rounded-lg px-3 py-2">{error}</p>
             )}
 
             <motion.button
               type="submit"
               disabled={loading}
               whileTap={{ scale: 0.98 }}
-              className="w-full py-3 rounded-xl font-semibold text-white text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 disabled:opacity-50 mt-1"
-              style={{
-                background: "linear-gradient(135deg, #c47d2a, #d4913a)",
-              }}
+              className="w-full py-3 rounded-xl font-semibold text-white text-sm flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50 mt-1"
+              style={{ background: "linear-gradient(135deg, #c47d2a, #d4913a)" }}
             >
               <LogIn size={15} />
               {loading ? "Signing in…" : "Sign In"}
@@ -164,9 +143,7 @@ export default function LMSLogin() {
 
         <p className="text-center text-white/20 text-xs mt-4">
           Access is by invitation only.{" "}
-          <a href="/" className="text-white/40 hover:text-white/60 transition-colors">
-            ← Back to site
-          </a>
+          <a href="/" className="text-white/40 hover:text-white/60 transition-colors">← Back to site</a>
         </p>
       </motion.div>
     </div>
