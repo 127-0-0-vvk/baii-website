@@ -20,10 +20,6 @@ export const metadata: Metadata = {
   description:
     "India's first applied innovation incubator. Real programmes, real labs, real outcomes.",
   keywords: ["BAII", "innovation", "India", "energy", "semiconductors", "incubator", "students"],
-  icons: {
-    icon: "/favicon.png",
-    apple: "/favicon.png",
-  },
   openGraph: {
     title: "BAII — Bharat Advanced Innovation Incubator",
     description: "Real programmes. Real labs. Real outcomes.",

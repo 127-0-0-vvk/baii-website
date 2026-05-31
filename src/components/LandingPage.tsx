@@ -39,18 +39,13 @@ export default function LandingPage() {
           transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
           className="relative z-10 flex justify-center pt-6 md:pt-8 w-full"
         >
-          <Image
-            src="/baii-logo.png"
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/baii-logo.svg"
             alt="BAII — Bharat Advanced Innovation Incubator"
-            width={400}
-            height={400}
-            priority
             style={{
               width: "clamp(110px, 18vw, 260px)",
               height: "auto",
-              /* multiply makes pure white pixels fully transparent —
-                 logo colours remain, white bg disappears into hero */
-              mixBlendMode: "multiply",
             }}
           />
         </motion.div>
