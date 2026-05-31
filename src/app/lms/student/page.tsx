@@ -311,20 +311,28 @@ export default function StudentDashboard() {
     const sb = createClient();
     supabaseRef.current = sb;
 
-    sb.auth.getSession().then(({ data: { session }, error }) => {
-      if (error || !session?.user) { router.push("/lms"); return; }
-
-      sb.from("profiles")
+    const loadProfile = async (userId: string) => {
+      const { data: p, error: pErr } = await sb
+        .from("profiles")
         .select("id, full_name, email, phone, school, city, role")
-        .eq("id", session.user.id)
-        .single()
-        .then(({ data: p, error: pErr }) => {
-          if (pErr || !p) { router.push("/lms"); return; }
-          if (p.role === "admin") { router.push("/lms/admin"); return; }
-          setProfile(p as Profile);
-          setLoading(false);
-        });
+        .eq("id", userId)
+        .single();
+      if (pErr || !p) { window.location.href = "/lms"; return; }
+      if (p.role === "admin") { window.location.href = "/lms/admin"; return; }
+      setProfile(p as Profile);
+      setLoading(false);
+    };
+
+    // Listen for auth state — fires immediately with current session
+    const { data: { subscription } } = sb.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        loadProfile(session.user.id);
+      } else if (event === "SIGNED_OUT" || event === "INITIAL_SESSION") {
+        window.location.href = "/lms";
+      }
     });
+
+    return () => subscription.unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

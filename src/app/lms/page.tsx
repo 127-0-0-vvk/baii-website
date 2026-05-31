@@ -40,9 +40,9 @@ export default function LMSLogin() {
       if (p?.role) role = p.role;
     } catch { /* profiles table may not be accessible */ }
 
-    // Small delay so localStorage write completes before navigation
-    await new Promise(r => setTimeout(r, 150));
-    router.push(role === "admin" ? "/lms/admin" : "/lms/student");
+    // Hard redirect (full page reload) so the new page reads
+    // localStorage fresh — soft router.push can race the write.
+    window.location.href = role === "admin" ? "/lms/admin" : "/lms/student";
   };
 
   return (

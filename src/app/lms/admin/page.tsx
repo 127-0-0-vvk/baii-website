@@ -88,16 +88,21 @@ export default function AdminDashboard() {
     const sb = createClient();
     supabaseRef.current = sb;
 
-    sb.auth.getSession().then(({ data: { session }, error }) => {
-      if (error || !session?.user) { router.push('/lms'); return; }
-      let role = session.user.user_metadata?.role as string | undefined;
-      sb.from('profiles').select('role').eq('id', session.user.id).single()
-        .then(({ data: p }) => {
-          if (p?.role) role = p.role;
-          if (role !== 'admin') router.push('/lms/student');
-          else fetchData();
-        });
+    // onAuthStateChange fires immediately with the current session
+    const { data: { subscription } } = sb.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        let role = session.user.user_metadata?.role as string | undefined;
+        sb.from('profiles').select('role').eq('id', session.user.id).single()
+          .then(({ data: p }) => {
+            if (p?.role) role = p.role;
+            if (role !== 'admin') { window.location.href = '/lms/student'; return; }
+            fetchData();
+          });
+      } else if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
+        window.location.href = '/lms';
+      }
     });
+    return () => subscription.unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
