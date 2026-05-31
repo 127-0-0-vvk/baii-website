@@ -15,13 +15,17 @@ create table if not exists profiles (
   created_at timestamptz default now()
 );
 alter table profiles enable row level security;
+drop policy if exists "Users can read own profile" on profiles;
 create policy "Users can read own profile" on profiles for select using (auth.uid() = id);
+drop policy if exists "Admins can read all profiles" on profiles;
 create policy "Admins can read all profiles" on profiles for select using (
   exists (select 1 from profiles where id = auth.uid() and role = 'admin')
 );
+drop policy if exists "Admins can insert profiles" on profiles;
 create policy "Admins can insert profiles" on profiles for insert with check (
   exists (select 1 from profiles where id = auth.uid() and role = 'admin')
 );
+drop policy if exists "Admins can update profiles" on profiles;
 create policy "Admins can update profiles" on profiles for update using (
   exists (select 1 from profiles where id = auth.uid() and role = 'admin')
 );
@@ -58,7 +62,9 @@ create table if not exists courses (
   created_at timestamptz default now()
 );
 alter table courses enable row level security;
+drop policy if exists "Anyone can read courses" on courses;
 create policy "Anyone can read courses" on courses for select using (true);
+drop policy if exists "Admins can manage courses" on courses;
 create policy "Admins can manage courses" on courses for all using (
   exists (select 1 from profiles where id = auth.uid() and role = 'admin')
 );
@@ -89,7 +95,9 @@ create table if not exists cohorts (
   created_at timestamptz default now()
 );
 alter table cohorts enable row level security;
+drop policy if exists "Anyone can read cohorts" on cohorts;
 create policy "Anyone can read cohorts" on cohorts for select using (true);
+drop policy if exists "Admins can manage cohorts" on cohorts;
 create policy "Admins can manage cohorts" on cohorts for all using (
   exists (select 1 from profiles where id = auth.uid() and role = 'admin')
 );
@@ -103,7 +111,9 @@ create table if not exists student_cohorts (
   unique(student_id, cohort_id)
 );
 alter table student_cohorts enable row level security;
+drop policy if exists "Students can read own cohorts" on student_cohorts;
 create policy "Students can read own cohorts" on student_cohorts for select using (student_id = auth.uid());
+drop policy if exists "Admins can manage all" on student_cohorts;
 create policy "Admins can manage all" on student_cohorts for all using (
   exists (select 1 from profiles where id = auth.uid() and role = 'admin')
 );
@@ -121,10 +131,13 @@ create table if not exists enrollment_requests (
   created_at timestamptz default now()
 );
 alter table enrollment_requests enable row level security;
+drop policy if exists "Anyone can insert enrollment request" on enrollment_requests;
 create policy "Anyone can insert enrollment request" on enrollment_requests for insert with check (true);
+drop policy if exists "Admins can read all enrollment requests" on enrollment_requests;
 create policy "Admins can read all enrollment requests" on enrollment_requests for select using (
   exists (select 1 from profiles where id = auth.uid() and role = 'admin')
 );
+drop policy if exists "Admins can update enrollment requests" on enrollment_requests;
 create policy "Admins can update enrollment requests" on enrollment_requests for update using (
   exists (select 1 from profiles where id = auth.uid() and role = 'admin')
 );
