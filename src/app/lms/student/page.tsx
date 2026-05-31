@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -302,31 +302,34 @@ function AccountTab({ profile, onLogout }: { profile: Profile; onLogout: () => v
 /* ─── MAIN COMPONENT ──────────────────────────────────────── */
 export default function StudentDashboard() {
   const router = useRouter();
-  const [supabase] = useState(() =>
-    typeof window !== "undefined" ? createClient() : null as unknown as ReturnType<typeof createClient>
-  );
+  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) { router.push("/lms"); return; }
-      supabase.from("profiles")
+    const sb = createClient();
+    supabaseRef.current = sb;
+
+    sb.auth.getUser().then(({ data, error }) => {
+      if (error || !data.user) { router.push("/lms"); return; }
+
+      sb.from("profiles")
         .select("id, full_name, email, phone, school, city, role")
         .eq("id", data.user.id)
         .single()
-        .then(({ data: p }) => {
-          if (!p) { router.push("/lms"); return; }
+        .then(({ data: p, error: pErr }) => {
+          if (pErr || !p) { router.push("/lms"); return; }
           if (p.role === "admin") { router.push("/lms/admin"); return; }
           setProfile(p as Profile);
           setLoading(false);
         });
     });
-  }, [supabase, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await supabaseRef.current?.auth.signOut();
     router.push("/lms");
   };
 

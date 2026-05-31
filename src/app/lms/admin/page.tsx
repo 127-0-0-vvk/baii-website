@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
@@ -47,8 +47,7 @@ type Tab = "users" | "enrollments";
 
 export default function AdminDashboard() {
   const router = useRouter();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const [supabase] = useState(() => typeof window !== "undefined" ? createClient() : null as unknown as ReturnType<typeof createClient>);
+  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
 
   const [tab, setTab] = useState<Tab>("users");
   const [users, setUsers] = useState<Profile[]>([]);
@@ -71,7 +70,9 @@ export default function AdminDashboard() {
   const [createError, setCreateError] = useState("");
   const [createdCredentials, setCreatedCredentials] = useState<{email:string;password:string;full_name:string;emailSent:boolean}|null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (): Promise<void> => {
+    const supabase = supabaseRef.current;
+    if (!supabase) return;
     setLoading(true);
     const [{ data: u }, { data: e }] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
@@ -80,23 +81,28 @@ export default function AdminDashboard() {
     setUsers((u as Profile[]) ?? []);
     setEnrollments((e as EnrollRequest[]) ?? []);
     setLoading(false);
-  }, [supabase]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) { router.push('/lms'); return; }
+    const sb = createClient();
+    supabaseRef.current = sb;
+
+    sb.auth.getUser().then(({ data, error }) => {
+      if (error || !data.user) { router.push('/lms'); return; }
       let role = data.user.user_metadata?.role as string | undefined;
-      supabase.from('profiles').select('role').eq('id', data.user.id).single()
+      sb.from('profiles').select('role').eq('id', data.user.id).single()
         .then(({ data: p }) => {
           if (p?.role) role = p.role;
           if (role !== 'admin') router.push('/lms/student');
           else fetchData();
         });
     });
-  }, [supabase, router, fetchData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await supabaseRef.current?.auth.signOut();
     router.push("/lms");
   };
 
@@ -121,7 +127,7 @@ export default function AdminDashboard() {
   };
 
   const updateEnrollStatus = async (id: string, status: string) => {
-    await supabase.from("enrollment_requests").update({ status }).eq("id", id);
+    await supabaseRef.current?.from("enrollment_requests").update({ status }).eq("id", id);
     setEnrollments((prev) =>
       prev.map((e) => (e.id === id ? { ...e, status } : e))
     );
