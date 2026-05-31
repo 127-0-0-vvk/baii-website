@@ -88,10 +88,10 @@ export default function AdminDashboard() {
     const sb = createClient();
     supabaseRef.current = sb;
 
-    sb.auth.getUser().then(({ data, error }) => {
-      if (error || !data.user) { router.push('/lms'); return; }
-      let role = data.user.user_metadata?.role as string | undefined;
-      sb.from('profiles').select('role').eq('id', data.user.id).single()
+    sb.auth.getSession().then(({ data: { session }, error }) => {
+      if (error || !session?.user) { router.push('/lms'); return; }
+      let role = session.user.user_metadata?.role as string | undefined;
+      sb.from('profiles').select('role').eq('id', session.user.id).single()
         .then(({ data: p }) => {
           if (p?.role) role = p.role;
           if (role !== 'admin') router.push('/lms/student');

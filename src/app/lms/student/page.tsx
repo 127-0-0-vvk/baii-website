@@ -311,12 +311,12 @@ export default function StudentDashboard() {
     const sb = createClient();
     supabaseRef.current = sb;
 
-    sb.auth.getUser().then(({ data, error }) => {
-      if (error || !data.user) { router.push("/lms"); return; }
+    sb.auth.getSession().then(({ data: { session }, error }) => {
+      if (error || !session?.user) { router.push("/lms"); return; }
 
       sb.from("profiles")
         .select("id, full_name, email, phone, school, city, role")
-        .eq("id", data.user.id)
+        .eq("id", session.user.id)
         .single()
         .then(({ data: p, error: pErr }) => {
           if (pErr || !p) { router.push("/lms"); return; }

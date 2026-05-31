@@ -23,16 +23,25 @@ export default function LMSLogin() {
     e.preventDefault();
     setLoading(true);
     setError("");
+
+    // Use singleton client — session is stored in localStorage
     const supabase = createClient();
     const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
     if (authError) { setError(authError.message); setLoading(false); return; }
 
+    // Check role from profiles table; fall back to user_metadata
     let role = data.user.user_metadata?.role as string | undefined;
     try {
-      const { data: p } = await supabase.from("profiles").select("role").eq("id", data.user.id).single();
+      const { data: p } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", data.user.id)
+        .single();
       if (p?.role) role = p.role;
-    } catch { /* table may not exist yet */ }
+    } catch { /* profiles table may not be accessible */ }
 
+    // Small delay so localStorage write completes before navigation
+    await new Promise(r => setTimeout(r, 150));
     router.push(role === "admin" ? "/lms/admin" : "/lms/student");
   };
 
