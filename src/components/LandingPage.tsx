@@ -51,7 +51,7 @@ export default function LandingPage() {
         </motion.div>
 
         {/* ── Text + button ── */}
-        <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-4xl mx-auto w-full flex-1 justify-center mt-[-4vw]">
+        <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-4xl mx-auto w-full flex-1 justify-center mt-[-10vw]">
 
           {/* Org name */}
           <motion.p
@@ -96,7 +96,7 @@ export default function LandingPage() {
           >
             Real programmes. Real labs. Real outcomes.
             <br />
-            For students who are done waiting to be taken seriously.
+            Where India&apos;s builders are made.
           </motion.p>
 
           {/* Enroll Now button */}
