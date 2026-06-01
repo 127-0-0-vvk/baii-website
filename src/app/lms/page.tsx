@@ -40,9 +40,11 @@ export default function LMSLogin() {
       if (p?.role) role = p.role;
     } catch { /* profiles table may not be accessible */ }
 
-    // Hard redirect (full page reload) so the new page reads
-    // localStorage fresh — soft router.push can race the write.
-    window.location.href = role === "admin" ? "/lms/admin" : "/lms/student";
+    // Pass tokens in URL so dashboard never depends on localStorage timing
+    const at = data.session!.access_token;
+    const rt = data.session!.refresh_token;
+    const dest = role === "admin" ? "/lms/admin" : "/lms/student";
+    window.location.href = `${dest}?at=${at}&rt=${rt}`;
   };
 
   return (

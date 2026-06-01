@@ -88,21 +88,36 @@ export default function AdminDashboard() {
     const sb = createClient();
     supabaseRef.current = sb;
 
-    // onAuthStateChange fires immediately with the current session
-    const { data: { subscription } } = sb.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        let role = session.user.user_metadata?.role as string | undefined;
-        sb.from('profiles').select('role').eq('id', session.user.id).single()
-          .then(({ data: p }) => {
-            if (p?.role) role = p.role;
-            if (role !== 'admin') { window.location.href = '/lms/student'; return; }
-            fetchData();
-          });
-      } else if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
-        window.location.href = '/lms';
+    async function init() {
+      // 1. URL tokens from login redirect
+      const params = new URLSearchParams(window.location.search);
+      const at = params.get('at');
+      const rt = params.get('rt');
+
+      let userId = '';
+      let metaRole = '';
+
+      if (at && rt) {
+        window.history.replaceState({}, '', '/lms/admin');
+        const { data, error } = await sb.auth.setSession({ access_token: at, refresh_token: rt });
+        if (error || !data.session?.user) { window.location.href = '/lms'; return; }
+        userId = data.session.user.id;
+        metaRole = data.session.user.user_metadata?.role || '';
+      } else {
+        const { data: { session } } = await sb.auth.getSession();
+        if (!session?.user) { window.location.href = '/lms'; return; }
+        userId = session.user.id;
+        metaRole = session.user.user_metadata?.role || '';
       }
-    });
-    return () => subscription.unsubscribe();
+
+      // 2. Verify admin role from profiles
+      let role = metaRole;
+      const { data: p } = await sb.from('profiles').select('role').eq('id', userId).single();
+      if (p?.role) role = p.role;
+      if (role !== 'admin') { window.location.href = '/lms/student'; return; }
+      fetchData();
+    }
+    init();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

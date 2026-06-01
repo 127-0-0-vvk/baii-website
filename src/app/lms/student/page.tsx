@@ -312,27 +312,53 @@ export default function StudentDashboard() {
     supabaseRef.current = sb;
 
     const loadProfile = async (userId: string) => {
-      const { data: p, error: pErr } = await sb
+      const { data: p } = await sb
         .from("profiles")
         .select("id, full_name, email, phone, school, city, role")
         .eq("id", userId)
         .single();
-      if (pErr || !p) { window.location.href = "/lms"; return; }
+
+      if (!p) {
+        // No profile row yet — use session metadata as fallback
+        const { data: { session } } = await sb.auth.getSession();
+        if (!session) { window.location.href = "/lms"; return; }
+        setProfile({
+          id: userId,
+          full_name: session.user.user_metadata?.full_name || "Student",
+          email: session.user.email || "",
+          phone: null, school: null, city: null, role: "student",
+        });
+        setLoading(false);
+        return;
+      }
+
       if (p.role === "admin") { window.location.href = "/lms/admin"; return; }
       setProfile(p as Profile);
       setLoading(false);
     };
 
-    // Listen for auth state — fires immediately with current session
-    const { data: { subscription } } = sb.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        loadProfile(session.user.id);
-      } else if (event === "SIGNED_OUT" || event === "INITIAL_SESSION") {
-        window.location.href = "/lms";
-      }
-    });
+    async function init() {
+      // 1. Check URL for tokens passed from login page
+      const params = new URLSearchParams(window.location.search);
+      const at = params.get("at");
+      const rt = params.get("rt");
 
-    return () => subscription.unsubscribe();
+      if (at && rt) {
+        // Remove tokens from URL immediately
+        window.history.replaceState({}, "", "/lms/student");
+        const { data, error } = await sb.auth.setSession({ access_token: at, refresh_token: rt });
+        if (error || !data.session?.user) { window.location.href = "/lms"; return; }
+        loadProfile(data.session.user.id);
+        return;
+      }
+
+      // 2. Fallback: check existing localStorage session
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session?.user) { window.location.href = "/lms"; return; }
+      loadProfile(session.user.id);
+    }
+
+    init();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
