@@ -562,25 +562,6 @@ export default function StudentDashboard() {
             );
           })}
 
-          {/* Account icon */}
-          <button
-            onClick={() => setActiveTab("account")}
-            className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all relative"
-            style={{ minWidth: 56 }}
-          >
-            {activeTab === "account" && (
-              <motion.div
-                layoutId="nav-pill"
-                className="absolute inset-0 rounded-xl"
-                style={{ background: "rgba(26,58,107,0.07)" }}
-                transition={{ type: "spring", stiffness: 400, damping: 30 }}
-              />
-            )}
-            <Initials name={profile?.full_name || "S"} size={22} />
-            <span className="text-[10px] font-semibold relative" style={{ color: activeTab === "account" ? "#1a3a6b" : "#94a3b8" }}>
-              Account
-            </span>
-          </button>
         </nav>
       </div>
     </div>
