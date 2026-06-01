@@ -157,16 +157,32 @@ function DashboardTab({ profile }: { profile: Profile }) {
 /* ─── COURSES tab ─────────────────────────────────────────── */
 function CoursesTab() {
   return (
-    <div>
-      <div className="flex items-center justify-between mb-5">
-        <h2 className="font-black text-slate-800 text-lg" style={{ fontFamily: "var(--font-playfair)" }}>My Courses</h2>
-        <Badge variant="outline" className="text-[10px]" style={{ borderColor: "#e2e8f0", color: "#94a3b8" }}>0 enrolled</Badge>
+    <div className="space-y-8">
+      {/* Enrolled courses */}
+      <div>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="font-black text-slate-800 text-lg" style={{ fontFamily: "var(--font-playfair)" }}>My Courses</h2>
+          <Badge variant="outline" className="text-[10px]" style={{ borderColor: "#e2e8f0", color: "#94a3b8" }}>0 enrolled</Badge>
+        </div>
+        <EmptyState
+          icon={<GraduationCap size={32} />}
+          title="No courses yet"
+          sub="Once the admin assigns you to a cohort, your courses will appear here."
+        />
       </div>
-      <EmptyState
-        icon={<GraduationCap size={32} />}
-        title="No courses yet"
-        sub="Once the admin assigns you to a cohort, your courses will appear here."
-      />
+
+      {/* Assignments */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-slate-700 text-base" style={{ fontFamily: "var(--font-playfair)" }}>Assignments</h3>
+          <Badge variant="outline" className="text-[10px]" style={{ borderColor: "#e2e8f0", color: "#94a3b8" }}>0 pending</Badge>
+        </div>
+        <div className="rounded-2xl p-5 text-center" style={{ background: "#f8fafc", border: "1px dashed #e2e8f0" }}>
+          <FileText size={22} className="mx-auto mb-2 text-slate-300" />
+          <p className="text-sm text-slate-400">No assignments yet</p>
+          <p className="text-xs text-slate-300 mt-0.5">Assignments will appear here once your course begins.</p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -208,8 +224,6 @@ function LibraryTab() {
         {[
           { icon: <BookMarked size={20} />, label: "Study Materials", count: 0, color: "#1a3a6b" },
           { icon: <FileText size={20} />, label: "Lab Reports", count: 0, color: "#c47d2a" },
-          { icon: <GraduationCap size={20} />, label: "Assignments", count: 0, color: "#4a9fd4" },
-          { icon: <Award size={20} />, label: "Certificates", count: 0, color: "#7c3aed" },
         ].map((item) => (
           <div key={item.label} className="rounded-2xl p-4" style={{ background: "#fff", boxShadow: "0 1px 8px rgba(0,0,0,0.05)" }}>
             <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3" style={{ background: `${item.color}12`, color: item.color }}>
@@ -270,6 +284,16 @@ function AccountTab({ profile, onLogout }: { profile: Profile; onLogout: () => v
             {i < arr.length - 1 && <Separator className="ml-16" />}
           </div>
         ))}
+      </div>
+
+      {/* Certificates */}
+      <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-5 pt-4 pb-2">Certificates</p>
+        <div className="px-5 pb-5 pt-2 text-center" style={{ borderTop: "1px solid #f1f5f9" }}>
+          <Award size={28} className="mx-auto mb-2" style={{ color: "rgba(26,58,107,0.15)" }} />
+          <p className="text-sm text-slate-400 font-medium">No certificates yet</p>
+          <p className="text-xs text-slate-300 mt-0.5">Earned certificates will appear here after completing a course.</p>
+        </div>
       </div>
 
       {/* Settings */}
