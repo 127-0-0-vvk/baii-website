@@ -15,6 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { createClient } from "@/lib/supabase/client";
+import Pillar5Course from "@/components/lms/Pillar5Course";
 
 /* ─── types ───────────────────────────────────────────────── */
 type Profile = {
@@ -156,31 +157,87 @@ function DashboardTab({ profile }: { profile: Profile }) {
 
 /* ─── COURSES tab ─────────────────────────────────────────── */
 function CoursesTab() {
+  const [openCourse, setOpenCourse] = useState<string | null>(null);
+
+  if (openCourse === "pillar5") {
+    return <Pillar5Course onBack={() => setOpenCourse(null)} />;
+  }
+
   return (
-    <div className="space-y-8">
-      {/* Enrolled courses */}
+    <div className="space-y-6">
       <div>
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="font-black text-slate-800 text-lg" style={{ fontFamily: "var(--font-playfair)" }}>My Courses</h2>
-          <Badge variant="outline" className="text-[10px]" style={{ borderColor: "#e2e8f0", color: "#94a3b8" }}>0 enrolled</Badge>
-        </div>
-        <EmptyState
-          icon={<GraduationCap size={32} />}
-          title="No courses yet"
-          sub="Once the admin assigns you to a cohort, your courses will appear here."
-        />
+        <h2 className="font-black text-slate-800 text-lg mb-1" style={{ fontFamily: "var(--font-playfair)" }}>My Courses</h2>
+        <p className="text-xs text-slate-400 mb-5">Courses assigned by your BAII cohort admin</p>
       </div>
 
-      {/* Assignments */}
+      {/* Pillar 5 — Critical Thinking & Communication */}
+      <motion.button
+        whileHover={{ scale: 1.01, y: -2 }}
+        whileTap={{ scale: 0.99 }}
+        onClick={() => setOpenCourse("pillar5")}
+        className="w-full text-left rounded-2xl overflow-hidden shadow-sm border border-slate-100"
+        style={{ background: "#fff" }}
+      >
+        {/* Card header */}
+        <div className="p-5 relative overflow-hidden" style={{ background: "linear-gradient(135deg, #1a3a6b 0%, #235098 100%)" }}>
+          <div className="absolute right-0 top-0 w-24 h-24 rounded-full blur-2xl opacity-20 pointer-events-none" style={{ background: "#c47d2a", transform: "translate(30%,-30%)" }} />
+          <div className="flex items-start justify-between">
+            <div>
+              <span className="text-[10px] font-bold text-white/60 uppercase tracking-widest">Pillar 5 · Mandatory</span>
+              <h3 className="text-white font-black text-lg mt-0.5 leading-tight" style={{ fontFamily: "var(--font-playfair)" }}>
+                Critical Thinking<br/>& Communication
+              </h3>
+            </div>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ml-3" style={{ background: "rgba(255,255,255,0.15)" }}>
+              <span className="text-lg">🧠</span>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {["7 Years", "5 Modules/Year", "35 Weeks/Year", "Bi-weekly Sparring"].map(tag => (
+              <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(255,255,255,0.15)", color: "white" }}>{tag}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* Card body */}
+        <div className="px-5 py-4">
+          <p className="text-xs text-slate-500 leading-relaxed mb-4">
+            The operating system for every other pillar. Truth detection → Data literacy → Argumentation → Research → Strategy → Communication → Building. Seven years, one compounding skill.
+          </p>
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {[
+              { label: "Class 6", title: "Truth Detective", color: "#2563EB" },
+              { label: "Class 7", title: "Data Journalist", color: "#059669" },
+              { label: "Class 8", title: "Debater", color: "#DC2626" },
+              { label: "Class 9", title: "Researcher", color: "#7C3AED" },
+              { label: "Class 10", title: "Strategist", color: "#B45309" },
+              { label: "Class 11–12", title: "Builder", color: "#1E3A5F" },
+            ].map(y => (
+              <div key={y.label} className="rounded-xl p-2.5 text-center" style={{ background: `${y.color}08`, border: `1px solid ${y.color}20` }}>
+                <p className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: y.color }}>{y.label}</p>
+                <p className="text-[10px] font-semibold text-slate-700 leading-tight">{y.title}</p>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-400">Tap to explore the full curriculum path</span>
+            <span className="flex items-center gap-1 text-xs font-bold" style={{ color: "#1a3a6b" }}>
+              Explore <ChevronRight size={13} />
+            </span>
+          </div>
+        </div>
+      </motion.button>
+
+      {/* Assignments section */}
       <div>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-slate-700 text-base" style={{ fontFamily: "var(--font-playfair)" }}>Assignments</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-bold text-slate-700 text-sm" style={{ fontFamily: "var(--font-playfair)" }}>Assignments</h3>
           <Badge variant="outline" className="text-[10px]" style={{ borderColor: "#e2e8f0", color: "#94a3b8" }}>0 pending</Badge>
         </div>
         <div className="rounded-2xl p-5 text-center" style={{ background: "#f8fafc", border: "1px dashed #e2e8f0" }}>
-          <FileText size={22} className="mx-auto mb-2 text-slate-300" />
+          <FileText size={20} className="mx-auto mb-2 text-slate-300" />
           <p className="text-sm text-slate-400">No assignments yet</p>
-          <p className="text-xs text-slate-300 mt-0.5">Assignments will appear here once your course begins.</p>
+          <p className="text-xs text-slate-300 mt-0.5">Assignments appear once your cohort begins.</p>
         </div>
       </div>
     </div>
