@@ -10,11 +10,12 @@ import {
   CheckCircle2, XCircle, Clock, Search, GraduationCap,
   UserPlus, Bell, Mail, Phone, MapPin, School, Shield,
   ChevronRight, Zap, Cpu, Settings, UserCircle, MoreHorizontal,
-  ArrowRight, Bookmark,
+  ArrowRight, Bookmark, Pencil, ChevronDown, Save, AlertCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { createClient } from "@/lib/supabase/client";
+import { PILLAR5_YEARS, type Year, type Week } from "@/data/pillar5";
 
 /* ─── types ───────────────────────────────────────────────── */
 type Profile = { id: string; email: string; full_name: string; role: string; phone: string | null; school: string | null; city: string | null; created_at: string; };
@@ -500,53 +501,246 @@ function EnrollmentsPage({ enrollments, onRefresh }: { enrollments: EnrollReques
   );
 }
 
-function CoursesPage() {
-  const YEAR_COLORS = ["#2563EB","#059669","#DC2626","#7C3AED","#B45309","#15803D","#1E3A5F"];
-  return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-black text-slate-800" style={{fontFamily:"var(--font-playfair)"}}>Courses</h1>
-        <p className="text-slate-400 text-sm mt-0.5">Manage all BAII programmes</p>
-      </div>
+/* ─── Week edit modal ──────────────────────────────────────── */
+function WeekEditModal({ yearId, moduleId, week, yearColor, onClose, onSaved }: {
+  yearId: string; moduleId: string; week: Week; yearColor: string;
+  onClose: () => void; onSaved: (updated: Week) => void;
+}) {
+  const [form, setForm] = useState({ topic: week.topic, concept: week.concept, exercise: week.exercise, india_example: week.example });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState("");
 
-      {/* Pillar 5 overview card */}
-      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden" style={{boxShadow:"0 1px 12px rgba(0,0,0,0.05)"}}>
-        <div className="p-5 relative overflow-hidden" style={{background:"linear-gradient(135deg,#1a3a6b,#235098)"}}>
-          <div className="absolute right-0 top-0 w-24 h-24 rounded-full blur-2xl opacity-20" style={{background:"#c47d2a",transform:"translate(30%,-30%)"}}/>
-          <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest mb-1">Pillar 5 · Mandatory for all students</p>
-          <h2 className="text-white font-black text-xl mb-2" style={{fontFamily:"var(--font-playfair)"}}>Critical Thinking & Communication</h2>
-          <p className="text-white/70 text-xs leading-relaxed mb-3">7-year operating system. Truth detection → Data literacy → Argumentation → Research → Strategy → Communication → Building. Each year compounds on the last.</p>
-          <div className="flex flex-wrap gap-1.5">
-            {["7 Years","5 Modules/Year","35 Weeks/Year","245 Lesson Nodes","Bi-weekly Tutor Sparring"].map(t=>(
-              <span key={t} className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{background:"rgba(255,255,255,0.15)",color:"white"}}>{t}</span>
-            ))}
+  const save = async () => {
+    setSaving(true); setErr("");
+    const res = await fetch("/api/admin/pillar5", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ year_id: yearId, module_id: moduleId, week_num: week.w, ...form }),
+    });
+    if (!res.ok) { const j = await res.json(); setErr(j.error); }
+    else { setSaved(true); onSaved({ ...week, topic: form.topic, concept: form.concept, exercise: form.exercise, example: form.india_example }); }
+    setSaving(false);
+  };
+
+  const field = (key: keyof typeof form, label: string, rows = 2) => (
+    <div>
+      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">{label}</label>
+      <textarea rows={rows} value={form[key]} onChange={e => setForm(f => ({...f,[key]:e.target.value}))}
+        className="w-full rounded-xl px-3 py-2.5 text-sm border border-slate-200 bg-slate-50 text-slate-700 resize-none focus:outline-none focus:border-slate-400 transition-colors"
+      />
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{scale:0.95,y:16}} animate={{scale:1,y:0}}
+        className="relative bg-white rounded-2xl w-full max-w-lg shadow-2xl z-10 max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 rounded-t-2xl shrink-0" style={{background:yearColor}}>
+          <div>
+            <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">{week.w}</p>
+            <p className="text-white font-bold text-base">{form.topic}</p>
           </div>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{background:"rgba(255,255,255,0.2)"}}>
+            <X size={14} className="text-white"/>
+          </button>
         </div>
 
-        {/* Year rows */}
-        <table className="w-full text-sm">
-          <thead><tr style={{background:"#f8fafc"}}>{["Year","Title","Tagline","Weeks","Status"].map(h=><th key={h} className="text-left px-5 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">{h}</th>)}</tr></thead>
-          <tbody>
-            {ALL_COURSES.map((course, i)=>(
-              <tr key={course.code} className="border-t border-slate-50 hover:bg-slate-50/50 transition-colors">
-                <td className="px-5 py-3.5">
-                  <span className="font-bold text-xs px-2.5 py-1 rounded-lg text-white" style={{background:YEAR_COLORS[i]}}>
-                    {course.year}
-                  </span>
-                </td>
-                <td className="px-5 py-3.5 font-semibold text-slate-700 text-sm">{course.label.split("—")[1]?.trim()}</td>
-                <td className="px-5 py-3.5 text-xs text-slate-400 hidden md:table-cell">
-                  {["Can you tell fact from fiction?","Can you read what the numbers are saying?","Can you argue both sides — and win?","Can you find the truth yourself?","Can you solve a problem with no textbook answer?","Can you move a room?","Can you build something that exists in the world?"][i]}
-                </td>
-                <td className="px-5 py-3.5 text-xs text-slate-400">{course.duration}</td>
-                <td className="px-5 py-3.5">
-                  <span className="text-[11px] px-2.5 py-1 rounded-full font-semibold" style={{background:"#f0fdf4",color:"#16a34a"}}>Active</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {/* Fields */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {saved && <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm font-semibold"><CheckCircle2 size={16}/> Saved successfully</div>}
+          {err && <div className="flex items-center gap-2 text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm"><AlertCircle size={15}/> {err}</div>}
+          {field("topic", "Week Title", 1)}
+          {field("concept", "Concept / Lesson", 4)}
+          {field("exercise", "Exercise", 4)}
+          {field("india_example", "India Example", 3)}
+        </div>
+
+        <div className="px-5 pb-5 shrink-0">
+          <button onClick={save} disabled={saving}
+            className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-50 hover:opacity-90"
+            style={{background:yearColor}}>
+            {saving ? <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin"/> : <Save size={15}/>}
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+/* ─── COURSES PAGE ─────────────────────────────────────────── */
+function CoursesPage() {
+  const [expandedYear, setExpandedYear] = useState<string | null>(null);
+  const [expandedModule, setExpandedModule] = useState<string | null>(null);
+  const [editingWeek, setEditingWeek] = useState<{yearId:string;moduleId:string;week:Week;color:string} | null>(null);
+  const [years, setYears] = useState(PILLAR5_YEARS);
+  const [loading, setLoading] = useState(false);
+
+  // Load any admin overrides from Supabase
+  const loadOverrides = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/pillar5");
+      const { years: merged } = await res.json();
+      if (merged) setYears(merged);
+    } catch { /* use static data */ }
+    setLoading(false);
+  };
+
+  useState(() => { loadOverrides(); });
+
+  const handleSaved = (yearId: string, moduleId: string, updated: Week) => {
+    setYears(prev => prev.map(y => y.id !== yearId ? y : {
+      ...y, modules: y.modules.map(m => m.id !== moduleId ? m : {
+        ...m, weeks_detail: m.weeks_detail.map(w => w.w === updated.w ? updated : w)
+      })
+    }));
+    setEditingWeek(null);
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-black text-slate-800" style={{fontFamily:"var(--font-playfair)"}}>Courses</h1>
+          <p className="text-slate-400 text-sm mt-0.5">Click any year → module → week to view or edit content</p>
+        </div>
+        <button onClick={loadOverrides} className="flex items-center gap-2 text-xs text-slate-400 hover:text-slate-600 transition-colors">
+          <RefreshCw size={13} className={loading ? "animate-spin" : ""}/> Refresh
+        </button>
       </div>
+
+      {/* Pillar 5 header */}
+      <div className="rounded-2xl p-5 relative overflow-hidden" style={{background:"linear-gradient(135deg,#1a3a6b,#235098)"}}>
+        <div className="absolute right-0 top-0 w-24 h-24 rounded-full blur-2xl opacity-20" style={{background:"#c47d2a",transform:"translate(30%,-30%)"}}/>
+        <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest mb-1">Pillar 5 · Mandatory</p>
+        <h2 className="text-white font-black text-xl mb-2" style={{fontFamily:"var(--font-playfair)"}}>Critical Thinking & Communication</h2>
+        <div className="flex flex-wrap gap-1.5">
+          {["7 Years","5 Modules/Year","35 Weeks/Year","245 Lesson Nodes"].map(t=>(
+            <span key={t} className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{background:"rgba(255,255,255,0.15)",color:"white"}}>{t}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* Year accordion */}
+      <div className="space-y-2">
+        {years.map((year, yi) => {
+          const isYearOpen = expandedYear === year.id;
+          return (
+            <div key={year.id} className="bg-white rounded-2xl border border-slate-100 overflow-hidden" style={{boxShadow:"0 1px 8px rgba(0,0,0,0.04)"}}>
+              {/* Year row */}
+              <button onClick={() => { setExpandedYear(isYearOpen ? null : year.id); setExpandedModule(null); }}
+                className="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors text-left">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-white font-black text-sm" style={{background:year.color}}>
+                  C{6+yi}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-slate-800 text-sm">{year.label} — {year.title}</p>
+                  <p className="text-xs text-slate-400 truncate italic">"{year.tagline}"</p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-[10px] text-slate-400 hidden sm:block">{year.modules.length} modules · {year.modules.reduce((a,m)=>a+m.weeks_detail.length,0)} weeks</span>
+                  <ChevronDown size={16} className="text-slate-400 transition-transform" style={{transform: isYearOpen ? "rotate(180deg)" : "none"}}/>
+                </div>
+              </button>
+
+              {/* Modules */}
+              {isYearOpen && (
+                <div className="border-t border-slate-100">
+                  {/* Year mission */}
+                  <div className="px-5 py-3 text-xs leading-relaxed" style={{background:`${year.color}06`,color:"#64748b"}}>
+                    <span className="font-semibold" style={{color:year.color}}>Year-end mission: </span>{year.finalMission.split(":")[0]}
+                  </div>
+
+                  {year.modules.map((mod, mi) => {
+                    const modKey = `${year.id}-${mod.id}`;
+                    const isModOpen = expandedModule === modKey;
+                    return (
+                      <div key={mod.id} className="border-t border-slate-50">
+                        {/* Module row */}
+                        <button onClick={() => setExpandedModule(isModOpen ? null : modKey)}
+                          className="w-full flex items-center gap-3 px-5 py-3 hover:bg-slate-50 transition-colors text-left">
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-black shrink-0" style={{background:year.color}}>
+                            M{mi+1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-slate-700 text-sm">{mod.title}</p>
+                            <p className="text-xs text-slate-400">{mod.subtitle} · {mod.weeks}</p>
+                          </div>
+                          <ChevronDown size={14} className="text-slate-300 transition-transform shrink-0" style={{transform:isModOpen?"rotate(180deg)":"none"}}/>
+                        </button>
+
+                        {/* Weeks table */}
+                        {isModOpen && (
+                          <div className="border-t border-slate-50">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr style={{background:"#f8fafc"}}>
+                                  {["Week","Topic","Concept","Exercise","India Example","Edit"].map(h=>(
+                                    <th key={h} className="text-left px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {mod.weeks_detail.map((week, wi) => (
+                                  <tr key={week.w} className="border-t border-slate-50 hover:bg-slate-50/50 transition-colors">
+                                    <td className="px-4 py-3 shrink-0">
+                                      <span className="text-[10px] font-black px-2 py-1 rounded-md text-white inline-block" style={{background:year.color}}>
+                                        {week.w}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 font-semibold text-slate-700 text-xs max-w-[120px]">
+                                      <p className="truncate">{week.topic}</p>
+                                    </td>
+                                    <td className="px-4 py-3 text-xs text-slate-500 max-w-[160px] hidden md:table-cell">
+                                      <p className="line-clamp-2">{week.concept}</p>
+                                    </td>
+                                    <td className="px-4 py-3 text-xs text-slate-500 max-w-[160px] hidden lg:table-cell">
+                                      <p className="line-clamp-2">{week.exercise}</p>
+                                    </td>
+                                    <td className="px-4 py-3 text-xs max-w-[140px] hidden xl:table-cell" style={{color:"#92500f"}}>
+                                      <p className="line-clamp-2">{week.example || "—"}</p>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <button
+                                        onClick={() => setEditingWeek({yearId:year.id, moduleId:mod.id, week, color:year.color})}
+                                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all hover:opacity-80"
+                                        style={{background:`${year.color}12`,color:year.color}}>
+                                        <Pencil size={11}/> Edit
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Edit modal */}
+      <AnimatePresence>
+        {editingWeek && (
+          <WeekEditModal
+            yearId={editingWeek.yearId}
+            moduleId={editingWeek.moduleId}
+            week={editingWeek.week}
+            yearColor={editingWeek.color}
+            onClose={() => setEditingWeek(null)}
+            onSaved={(updated) => handleSaved(editingWeek.yearId, editingWeek.moduleId, updated)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

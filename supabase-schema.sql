@@ -141,3 +141,22 @@ drop policy if exists "Admins can update enrollment requests" on enrollment_requ
 create policy "Admins can update enrollment requests" on enrollment_requests for update using (
   exists (select 1 from profiles where id = auth.uid() and role = 'admin')
 );
+
+-- Pillar 5 content overrides (admin edits override static defaults)
+create table if not exists pillar5_content (
+  id uuid default gen_random_uuid() primary key,
+  year_id text not null,
+  module_id text not null,
+  week_num text not null,
+  topic text,
+  concept text,
+  exercise text,
+  india_example text,
+  updated_at timestamptz default now(),
+  unique(year_id, module_id, week_num)
+);
+alter table pillar5_content enable row level security;
+drop policy if exists "Admins can manage pillar5 content" on pillar5_content;
+create policy "Admins can manage pillar5 content" on pillar5_content for all using (
+  exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+);
