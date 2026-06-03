@@ -23,16 +23,13 @@ type StudentCourse = { id: string; enrolled_at: string; cohorts: { id: string; n
 type Tab = "dashboard" | "students" | "enrollments" | "courses" | "payments" | "account";
 
 const ALL_COURSES = [
-  { code: "ETF",  label: "Energy Foundation",        track: "energy" },
-  { code: "ET01", label: "Solar & Storage",           track: "energy" },
-  { code: "ET02", label: "Wind Systems",              track: "energy" },
-  { code: "ET03", label: "Hydrogen & Fuel Cells",     track: "energy" },
-  { code: "ET04", label: "Grid Integration",          track: "energy" },
-  { code: "ET05", label: "Energy Materials Science",  track: "energy" },
-  { code: "SCF",  label: "Semiconductor Foundation",  track: "semi" },
-  { code: "SC01", label: "Chip Design Fundamentals",  track: "semi" },
-  { code: "SC02", label: "Power Semiconductors",      track: "semi" },
-  { code: "SC03", label: "Sensors & MEMS",            track: "semi" },
+  { code: "P5-C6",  label: "Class 6 — The Truth Detective",    track: "p5", year: "Class 6",  duration: "35 weeks" },
+  { code: "P5-C7",  label: "Class 7 — The Data Journalist",    track: "p5", year: "Class 7",  duration: "35 weeks" },
+  { code: "P5-C8",  label: "Class 8 — The Debater",            track: "p5", year: "Class 8",  duration: "35 weeks" },
+  { code: "P5-C9",  label: "Class 9 — The Researcher",         track: "p5", year: "Class 9",  duration: "35 weeks" },
+  { code: "P5-C10", label: "Class 10 — The Strategist",        track: "p5", year: "Class 10", duration: "35 weeks" },
+  { code: "P5-C11", label: "Class 11 — The Communicator",      track: "p5", year: "Class 11", duration: "35 weeks" },
+  { code: "P5-C12", label: "Class 12 — The Builder",           track: "p5", year: "Class 12", duration: "35 weeks" },
 ];
 
 /* ─── helpers ─────────────────────────────────────────────── */
@@ -104,20 +101,19 @@ function AssignModal({ userId, userName, onClose, onDone }: { userId: string; us
             <p className="font-bold text-slate-800 mb-1">Assign Course</p>
             <p className="text-xs text-slate-400 mb-4">Enrolling: <span className="font-semibold text-slate-600">{userName}</span></p>
             <div className="max-h-60 overflow-y-auto space-y-0.5 mb-4">
-              {["energy","semi"].map(track => (
-                <div key={track}>
-                  <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest px-2 py-1.5">{track === "energy" ? "⚡ Energy" : "💡 Semiconductor"}</p>
-                  {ALL_COURSES.filter(c => c.track === track).map(c => (
-                    <button key={c.code} onClick={() => setSelected(c.code)}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all"
-                      style={{ background: selected === c.code ? "rgba(26,58,107,0.08)" : "transparent", color: selected === c.code ? "#1a3a6b" : "#64748b" }}>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: selected === c.code ? "#1a3a6b" : "#f1f5f9", color: selected === c.code ? "white" : "#94a3b8" }}>{c.code}</span>
-                      {c.label}
-                      {selected === c.code && <CheckCircle2 size={13} className="ml-auto text-blue-900" />}
-                    </button>
-                  ))}
-                </div>
-              ))}
+              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest px-2 py-1.5">🧠 Pillar 5 — Critical Thinking & Communication</p>
+              {ALL_COURSES.map((course, i) => {
+                const colors = ["#2563EB","#059669","#DC2626","#7C3AED","#B45309","#15803D","#1E3A5F"];
+                return (
+                  <button key={course.code} onClick={() => setSelected(course.code)}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all"
+                    style={{ background: selected === course.code ? "rgba(26,58,107,0.08)" : "transparent", color: selected === course.code ? "#1a3a6b" : "#64748b" }}>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-white" style={{ background: colors[i] }}>{course.year.replace("Class ","C")}</span>
+                    {course.label.split("—")[1]?.trim()}
+                    {selected === course.code && <CheckCircle2 size={13} className="ml-auto" style={{color:"#1a3a6b"}} />}
+                  </button>
+                );
+              })}
             </div>
             {err && <p className="text-red-500 text-xs bg-red-50 rounded-lg px-3 py-2 mb-3">{err}</p>}
             <button onClick={assign} disabled={!selected || loading}
@@ -343,7 +339,7 @@ function DashboardPage({ users, enrollments }: { users: Profile[]; enrollments: 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={<Users size={20}/>} label="Total Students" value={students.length} color="#1a3a6b"/>
         <StatCard icon={<ClipboardList size={20}/>} label="Pending Enquiries" value={pending} color="#c47d2a"/>
-        <StatCard icon={<BookOpen size={20}/>} label="Courses Available" value={10} sub="ETF to SC03" color="#4a9fd4"/>
+        <StatCard icon={<BookOpen size={20}/>} label="Courses Available" value={7} sub="Pillar 5 · C6 to C12" color="#4a9fd4"/>
         <StatCard icon={<CreditCard size={20}/>} label="Payments" value="—" sub="Coming soon" color="#7c3aed"/>
       </div>
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden" style={{boxShadow:"0 1px 12px rgba(0,0,0,0.05)"}}>
@@ -505,30 +501,47 @@ function EnrollmentsPage({ enrollments, onRefresh }: { enrollments: EnrollReques
 }
 
 function CoursesPage() {
+  const YEAR_COLORS = ["#2563EB","#059669","#DC2626","#7C3AED","#B45309","#15803D","#1E3A5F"];
   return (
     <div className="space-y-5">
-      <div><h1 className="text-2xl font-black text-slate-800" style={{fontFamily:"var(--font-playfair)"}}>Courses</h1><p className="text-slate-400 text-sm mt-0.5">Manage all BAII programmes</p></div>
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        {[{color:"#c47d2a",icon:<Zap size={16}/>,label:"Energy Track",count:6,codes:"ETF, ET01–ET05"},{color:"#4a9fd4",icon:<Cpu size={16}/>,label:"Semiconductor Track",count:4,codes:"SCF, SC01–SC03"}].map(t=>(
-          <div key={t.label} className="bg-white rounded-2xl p-5 border border-slate-100 col-span-2 lg:col-span-1" style={{boxShadow:"0 1px 12px rgba(0,0,0,0.05)"}}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{background:`${t.color}12`,color:t.color}}>{t.icon}</div>
-            <p className="font-bold text-slate-800 mb-0.5">{t.label}</p>
-            <p className="text-xs text-slate-400 mb-2">{t.count} courses · {t.codes}</p>
-            <span className="text-[11px] px-2.5 py-1 rounded-full font-semibold" style={{background:"#f1f5f9",color:"#94a3b8"}}>Coming soon</span>
-          </div>
-        ))}
+      <div>
+        <h1 className="text-2xl font-black text-slate-800" style={{fontFamily:"var(--font-playfair)"}}>Courses</h1>
+        <p className="text-slate-400 text-sm mt-0.5">Manage all BAII programmes</p>
       </div>
+
+      {/* Pillar 5 overview card */}
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden" style={{boxShadow:"0 1px 12px rgba(0,0,0,0.05)"}}>
+        <div className="p-5 relative overflow-hidden" style={{background:"linear-gradient(135deg,#1a3a6b,#235098)"}}>
+          <div className="absolute right-0 top-0 w-24 h-24 rounded-full blur-2xl opacity-20" style={{background:"#c47d2a",transform:"translate(30%,-30%)"}}/>
+          <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest mb-1">Pillar 5 · Mandatory for all students</p>
+          <h2 className="text-white font-black text-xl mb-2" style={{fontFamily:"var(--font-playfair)"}}>Critical Thinking & Communication</h2>
+          <p className="text-white/70 text-xs leading-relaxed mb-3">7-year operating system. Truth detection → Data literacy → Argumentation → Research → Strategy → Communication → Building. Each year compounds on the last.</p>
+          <div className="flex flex-wrap gap-1.5">
+            {["7 Years","5 Modules/Year","35 Weeks/Year","245 Lesson Nodes","Bi-weekly Tutor Sparring"].map(t=>(
+              <span key={t} className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{background:"rgba(255,255,255,0.15)",color:"white"}}>{t}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* Year rows */}
         <table className="w-full text-sm">
-          <thead><tr style={{background:"#f8fafc"}}>{["Code","Course Name","Track","Duration","Status"].map(h=><th key={h} className="text-left px-5 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">{h}</th>)}</tr></thead>
+          <thead><tr style={{background:"#f8fafc"}}>{["Year","Title","Tagline","Weeks","Status"].map(h=><th key={h} className="text-left px-5 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">{h}</th>)}</tr></thead>
           <tbody>
-            {ALL_COURSES.map(c=>(
-              <tr key={c.code} className="border-t border-slate-50 hover:bg-slate-50/50 transition-colors">
-                <td className="px-5 py-3.5"><span className="font-mono text-xs font-bold px-2 py-1 rounded-lg" style={{background:c.track==="energy"?"rgba(196,125,42,0.1)":"rgba(74,159,212,0.1)",color:c.track==="energy"?"#c47d2a":"#4a9fd4"}}>{c.code}</span></td>
-                <td className="px-5 py-3.5 font-medium text-slate-700">{c.label}</td>
-                <td className="px-5 py-3.5"><span className="text-xs flex items-center gap-1" style={{color:c.track==="energy"?"#c47d2a":"#4a9fd4"}}>{c.track==="energy"?<Zap size={12}/>:<Cpu size={12}/>}{c.track==="energy"?"Energy":"Semiconductor"}</span></td>
-                <td className="px-5 py-3.5 text-xs text-slate-400">{c.code.endsWith("F")?"6 weeks":"3–4 months"}</td>
-                <td className="px-5 py-3.5"><span className="text-[11px] px-2.5 py-1 rounded-full font-semibold" style={{background:"#f0fdf4",color:"#16a34a"}}>Active</span></td>
+            {ALL_COURSES.map((course, i)=>(
+              <tr key={course.code} className="border-t border-slate-50 hover:bg-slate-50/50 transition-colors">
+                <td className="px-5 py-3.5">
+                  <span className="font-bold text-xs px-2.5 py-1 rounded-lg text-white" style={{background:YEAR_COLORS[i]}}>
+                    {course.year}
+                  </span>
+                </td>
+                <td className="px-5 py-3.5 font-semibold text-slate-700 text-sm">{course.label.split("—")[1]?.trim()}</td>
+                <td className="px-5 py-3.5 text-xs text-slate-400 hidden md:table-cell">
+                  {["Can you tell fact from fiction?","Can you read what the numbers are saying?","Can you argue both sides — and win?","Can you find the truth yourself?","Can you solve a problem with no textbook answer?","Can you move a room?","Can you build something that exists in the world?"][i]}
+                </td>
+                <td className="px-5 py-3.5 text-xs text-slate-400">{course.duration}</td>
+                <td className="px-5 py-3.5">
+                  <span className="text-[11px] px-2.5 py-1 rounded-full font-semibold" style={{background:"#f0fdf4",color:"#16a34a"}}>Active</span>
+                </td>
               </tr>
             ))}
           </tbody>
