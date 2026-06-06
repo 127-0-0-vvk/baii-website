@@ -6,6 +6,8 @@ export type LessonDay = {
   video_note: string;   // Caption shown under the video
   instructions: string; // What to do before writing
   prompt: string;       // What to write in the text box
+  min_words: number;    // Minimum word count before the student can submit
+  grading_criteria: string; // What a good answer looks like — fed to the AI grader
 };
 
 export type Week = {
@@ -56,17 +58,21 @@ export const PILLAR5_YEARS: Year[] = [
         {w:"W1",topic:"Look vs See",concept:"The invisible gorilla. Brain fills gaps automatically. Why eyewitnesses are unreliable.",exercise:"Watch a 2-min Indian street video. Write 15 specific observations. Compare with partner — who noticed different things?",example:"Two people watch the same cricket match — one notices the wrong umpire decision, other misses it completely. Why?",days:[
           {
             day:1,label:"Monday",title:"Your First Observation List",
-            video_url:"https://www.youtube.com/embed/luvoRMEmlj4",
-            video_note:"A walk through the real streets of Mumbai. Watch the first 2–3 minutes — no pausing, no rewinding.",
+            video_url:"https://www.youtube.com/embed/Pnl-S-9udT4",
+            video_note:"A 4-minute walk through the streets of New Delhi. Watch it fully — no pausing, no rewinding.",
             instructions:"Watch the video once without stopping. Just observe. Then come back and write your response below.",
             prompt:"Write 15 specific things you SAW in the video. Number each one (1–15).\n\nOnly write what your eyes actually saw — not what you guessed or assumed.\n\n❌ Wrong: \"A man going to work.\"\n✅ Right: \"A man wearing a white shirt walking quickly past a red wall.\"\n\nWrite all 15 now.",
+            min_words:40,
+            grading_criteria:"The student must list at least 15 numbered observations. A good answer contains concrete, visual observations (specific colours, clothing, objects, actions seen on screen) rather than assumptions or interpretations (e.g. 'a man going to work' is an assumption; 'a man in a white shirt walking past a red wall' is an observation). Pass if there are roughly 15 items and most are genuine concrete observations. Be encouraging — this is a Class 6 student.",
           },
           {
             day:2,label:"Tuesday",title:"I See vs I Assume",
-            video_url:"https://www.youtube.com/embed/mP4JSF0UuAk",
-            video_note:"A walk through Mumbai's Crawford Market. Watch the first 2–3 minutes.",
+            video_url:"https://www.youtube.com/embed/yFM-7Ss2D3w",
+            video_note:"A 7-minute walk through one of Delhi's busiest streets. Watch the whole thing.",
             instructions:"Watch the video once. This time, pay attention to what your brain does automatically — is it observing, or filling in gaps it didn't actually see?",
             prompt:"Write 5 'I SEE' statements and 5 'I ASSUME' statements from the video.\n\nFormat each one like this:\nI SEE → (something visually confirmed on screen)\nI ASSUME → (something your brain added that wasn't shown)\n\nExample:\nI SEE → a woman carrying a yellow bag\nI ASSUME → she is returning from shopping\n\nNow write your 10 statements.",
+            min_words:40,
+            grading_criteria:"The student must write 5 'I SEE' statements and 5 'I ASSUME' statements. Pass if the 'I SEE' lines are genuine visual observations and the 'I ASSUME' lines are genuine inferences/guesses the brain adds. The key skill is correctly separating observation from assumption. Be encouraging — this is a Class 6 student. If they mix them up (e.g. put an assumption under 'I SEE'), gently point it out in the feedback but still pass if they made a real attempt at all 10.",
           },
           {
             day:3,label:"Wednesday",title:"The Invisible Gorilla",
@@ -74,20 +80,26 @@ export const PILLAR5_YEARS: Year[] = [
             video_note:"A famous psychology experiment. The video will give you a task — follow it. Watch once only, no rewinding.",
             instructions:"This video will ask you to count something. Do it carefully. Watch once — no rewind, no pause. Come back and answer the questions below.",
             prompt:"Answer all three:\n\n1) What were you asked to count, and what was your count?\n\n2) What unexpected thing appeared in the video? Did you notice it while watching, or only when told?\n\n3) In 2–3 sentences: why do you think this happens? What does it tell you about how your brain works when it is focused on one thing?",
+            min_words:40,
+            grading_criteria:"The student must answer all three questions. The video is the selective-attention 'invisible gorilla' test (counting passes; a gorilla/unexpected element appears). Pass if they engaged honestly with all three parts and showed some reflection in Q3 about attention/focus causing them to miss things ('inattentional blindness'). Be encouraging — this is a Class 6 student. Reward honesty if they admit they missed the unexpected thing.",
           },
           {
             day:4,label:"Thursday",title:"Watch It Again",
-            video_url:"https://www.youtube.com/embed/luvoRMEmlj4",
-            video_note:"The same Mumbai street walk from Monday. Watch the first 2–3 minutes again — you are a different observer now.",
+            video_url:"https://www.youtube.com/embed/Pnl-S-9udT4",
+            video_note:"The same New Delhi street walk from Monday. Watch it again — you are a different observer now.",
             instructions:"This is the exact video you watched on Monday. Watch it again right now. Then answer below.",
             prompt:"Answer all three:\n\n1) List 3 things you notice today that you completely missed on Day 1.\n\n2) Why did you miss them the first time? Write 2–3 honest sentences.\n\n3) What does this re-watch tell you about how much a single viewing actually captures?",
+            min_words:40,
+            grading_criteria:"The student re-watched Monday's video. Pass if they listed 3 newly-noticed details and reflected honestly on why they missed them the first time and what that says about single viewings. Be encouraging — this is a Class 6 student. The insight to reward is awareness that one viewing captures only a fraction of what's there.",
           },
           {
             day:5,label:"Friday",title:"Week 1 Wrap-Up",
-            video_url:"https://www.youtube.com/embed/Z7yB-jf2Fhc",
-            video_note:"A new scene — a downtown Mumbai walk. Watch the first 2–3 minutes.",
+            video_url:"https://www.youtube.com/embed/G5-LApmkKIQ",
+            video_note:"A 12-minute look at everyday morning life in an Indian village. Watch it through.",
             instructions:"Final task for Week 1. Watch the video once, then take your time with all three questions below.",
             prompt:"1) Write 3 things you can CONFIRM from this video — things clearly visible on screen.\n\n2) Write 3 things your brain automatically ASSUMED that were not actually shown.\n\n3) Complete this sentence in 2–3 sentences:\n\"Before this week, I thought observation meant ___. Now I realise ___.\"",
+            min_words:45,
+            grading_criteria:"This is the Week 1 wrap-up. The student must (1) give 3 confirmable observations, (2) give 3 assumptions their brain added, and (3) complete the reflection sentence. Pass if all three parts are attempted and the confirm/assume distinction is mostly correct, and the reflection shows they learned something about the difference between seeing and assuming. Be warm and encouraging — this is the end of their first week.",
           },
         ]},
         {w:"W2",topic:"Assumption vs Fact",concept:"'I see...' vs 'I think...' Assumptions lead to wrong conclusions.",exercise:"5 images — write separately 'I see...' and 'I assume...' for each. Compare with class.",example:"Photo of man in torn clothes outside a shop. What do you see vs assume?"},

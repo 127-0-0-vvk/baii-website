@@ -5,41 +5,63 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   ChevronLeft, ChevronRight, Lock, CheckCircle2,
   Trophy, Target, X, ArrowRight, Lightbulb,
-  Dumbbell, MapPin, Play, Send, Calendar,
+  Dumbbell, MapPin, Play, Send, Calendar, AlertCircle, Sparkles,
 } from "lucide-react";
 import { PILLAR5_YEARS, PILLAR5_ARC, type Year, type Week, type LessonDay } from "@/data/pillar5";
 
+// Progress = which day-keys are done and on what IST date, plus the server's "today".
+type Progress = { completed: Record<string, string>; today: string };
+
 /* ─── Day Lesson View ────────────────────────────────────────── */
 function DayLessonView({
-  week, year, studentId, courseCode, completedDays, onDayComplete, onClose,
+  week, year, studentId, courseCode, progress, onDayComplete, onClose,
 }: {
   week: Week; year: Year; studentId?: string; courseCode?: string;
-  completedDays: Set<string>; onDayComplete: (key: string) => void; onClose: () => void;
+  progress: Progress; onDayComplete: (key: string, date: string) => void; onClose: () => void;
 }) {
   const days = week.days ?? [];
   const dayKey = (d: number) => `${week.w}-D${d}`;
-  const isDone = (d: number) => completedDays.has(dayKey(d));
-  const isLocked = (d: number) => d > 1 && !isDone(d - 1);
+  const isDone = (d: number) => dayKey(d) in progress.completed;
+  // One lesson per calendar day: day N+1 unlocks only on a later IST date than day N's submission.
+  const dayUnlocked = (d: number) => {
+    if (d === 1) return true;
+    if (!isDone(d - 1)) return false;
+    return progress.completed[dayKey(d - 1)] < progress.today;
+  };
+  // Locked purely because the previous day was finished today (comes back tomorrow).
+  const waitingForTomorrow = (d: number) =>
+    d > 1 && isDone(d - 1) && !isDone(d) && progress.completed[dayKey(d - 1)] === progress.today;
+
   const allDone = days.every((_, i) => isDone(i + 1));
 
-  // Start at first incomplete day
-  const firstOpen = days.findIndex((_, i) => !isDone(i + 1));
-  const [activeDay, setActiveDay] = useState(firstOpen >= 0 ? firstOpen + 1 : days.length);
+  // Start on the first day that's open (not done) and unlocked; else first not-done; else last.
+  const initialDay = (() => {
+    for (let i = 0; i < days.length; i++) {
+      if (!isDone(i + 1) && dayUnlocked(i + 1)) return i + 1;
+    }
+    for (let i = 0; i < days.length; i++) if (!isDone(i + 1)) return i + 1;
+    return days.length;
+  })();
+
+  const [activeDay, setActiveDay] = useState(initialDay);
   const [watched, setWatched] = useState(false);
   const [response, setResponse] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [justSubmitted, setJustSubmitted] = useState(false);
+  const [feedback, setFeedback] = useState<{ pass: boolean; feedback: string } | null>(null);
 
   const currentDayData: LessonDay | undefined = days[activeDay - 1];
+  const minWords = currentDayData?.min_words ?? 30;
+  const wordCount = response.trim() ? response.trim().split(/\s+/).filter(Boolean).length : 0;
+  const meetsMin = wordCount >= minWords;
 
-  // Reset watched/response when switching days
-  useEffect(() => { setWatched(false); setResponse(""); setJustSubmitted(false); }, [activeDay]);
+  useEffect(() => { setWatched(false); setResponse(""); setFeedback(null); }, [activeDay]);
 
   const submit = async () => {
-    if (!response.trim() || submitting) return;
+    if (!meetsMin || submitting || !currentDayData) return;
     setSubmitting(true);
+    setFeedback(null);
     try {
-      await fetch("/api/student/lesson-submit", {
+      const res = await fetch("/api/student/lesson-submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -50,12 +72,20 @@ function DayLessonView({
           week_num: week.w,
           day_num: activeDay,
           response,
+          prompt: currentDayData.prompt,
+          criteria: currentDayData.grading_criteria,
+          min_words: minWords,
+          day_title: `${currentDayData.label} — ${currentDayData.title}`,
         }),
       });
-      onDayComplete(dayKey(activeDay));
-      setJustSubmitted(true);
-      setResponse("");
-      setWatched(false);
+      const data = await res.json();
+      const grade = data.grade ?? { pass: !!data.accepted, feedback: "Submitted!" };
+      setFeedback({ pass: !!data.accepted, feedback: grade.feedback });
+      if (data.accepted) {
+        onDayComplete(dayKey(activeDay), progress.today);
+      }
+    } catch {
+      setFeedback({ pass: false, feedback: "Something went wrong submitting. Please try again." });
     } finally {
       setSubmitting(false);
     }
@@ -63,21 +93,20 @@ function DayLessonView({
 
   const LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
   const totalDays = days.length;
+  const nextLabel = days[activeDay]?.label;
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#f1f5f9" }}>
       {/* Header */}
       <div className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 py-3 flex items-center gap-3"
         style={{ boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
-        <button onClick={onClose}
-          className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-colors">
+        <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-colors">
           <ChevronLeft size={18} className="text-slate-500" />
         </button>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-slate-800 text-sm">{week.topic}</p>
           <p className="text-[10px] text-slate-400">{year.label} · Module 1 · {week.w}</p>
         </div>
-        {/* Completion pill */}
         <span className="text-[10px] font-bold px-2.5 py-1 rounded-full"
           style={{ background: allDone ? "#f0fdf4" : `${year.color}12`, color: allDone ? "#16a34a" : year.color }}>
           {days.filter((_, i) => isDone(i + 1)).length}/{totalDays} done
@@ -89,28 +118,26 @@ function DayLessonView({
         {days.map((d, i) => {
           const dn = i + 1;
           const done = isDone(dn);
-          const locked = isLocked(dn);
+          const unlocked = dayUnlocked(dn);
           const active = activeDay === dn;
           return (
             <button key={dn}
-              onClick={() => !locked && setActiveDay(dn)}
-              disabled={locked}
+              onClick={() => setActiveDay(dn)}
               className="flex-1 flex flex-col items-center gap-1 py-2 rounded-xl transition-all"
               style={{
-                background: active ? year.color : done ? "#f0fdf4" : locked ? "#f8fafc" : "white",
-                border: `1.5px solid ${active ? year.color : done ? "#bbf7d0" : locked ? "#e2e8f0" : "#e2e8f0"}`,
-                opacity: locked ? 0.5 : 1,
+                background: active ? year.color : done ? "#f0fdf4" : "white",
+                border: `1.5px solid ${active ? year.color : done ? "#bbf7d0" : "#e2e8f0"}`,
+                opacity: !unlocked && !done ? 0.55 : 1,
               }}>
               <span className="text-[9px] font-bold uppercase tracking-wider"
                 style={{ color: active ? "rgba(255,255,255,0.8)" : done ? "#16a34a" : "#94a3b8" }}>
-                {LABELS[i]}
+                {LABELS[i] ?? `D${dn}`}
               </span>
               {done
                 ? <CheckCircle2 size={14} style={{ color: active ? "white" : "#16a34a" }} />
-                : locked
-                  ? <Lock size={12} style={{ color: "#cbd5e1" }} />
-                  : <span className="text-sm font-black" style={{ color: active ? "white" : year.color }}>{dn}</span>
-              }
+                : unlocked
+                  ? <span className="text-sm font-black" style={{ color: active ? "white" : year.color }}>{dn}</span>
+                  : <Lock size={12} style={{ color: "#cbd5e1" }} />}
             </button>
           );
         })}
@@ -119,42 +146,31 @@ function DayLessonView({
       {/* Content */}
       <div className="flex-1 overflow-y-auto pb-6">
         {allDone ? (
-          /* All 5 days complete — celebration */
           <div className="mx-4 mt-5">
-            <div className="rounded-2xl p-6 text-center"
-              style={{ background: `linear-gradient(135deg, ${year.color}, ${year.color}cc)` }}>
+            <div className="rounded-2xl p-6 text-center" style={{ background: `linear-gradient(135deg, ${year.color}, ${year.color}cc)` }}>
               <div className="text-4xl mb-3">🏆</div>
-              <p className="text-white font-black text-xl mb-1" style={{ fontFamily: "var(--font-playfair)" }}>
-                Week 1 Complete!
-              </p>
-              <p className="text-white/80 text-sm">You've finished all 5 days of &quot;Look vs See&quot;</p>
+              <p className="text-white font-black text-xl mb-1" style={{ fontFamily: "var(--font-playfair)" }}>Week 1 Complete!</p>
+              <p className="text-white/80 text-sm">You finished all 5 days of &quot;Look vs See&quot;</p>
               <div className="mt-4 rounded-xl p-3" style={{ background: "rgba(255,255,255,0.15)" }}>
                 <p className="text-white/90 text-xs leading-relaxed">
-                  The skill you built this week — seeing what's actually there vs. what your brain fills in —
+                  The skill you built this week — seeing what&apos;s actually there vs. what your brain fills in —
                   is one most adults never consciously develop. Week 2 unlocks next.
                 </p>
               </div>
             </div>
-
-            {/* All submissions summary */}
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-5 mb-2 px-1">Your 5-day journey</p>
-            {days.map((d, i) => (
+            {days.map((d) => (
               <div key={d.day} className="bg-white rounded-xl border border-slate-100 px-4 py-3 mb-2 flex items-center gap-3">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-                  style={{ background: "#f0fdf4" }}>
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#f0fdf4" }}>
                   <CheckCircle2 size={14} style={{ color: "#16a34a" }} />
                 </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-700">{d.label} — {d.title}</p>
-                  <p className="text-[10px] text-slate-400">Submitted</p>
-                </div>
+                <div><p className="text-xs font-bold text-slate-700">{d.label} — {d.title}</p><p className="text-[10px] text-slate-400">Submitted</p></div>
               </div>
             ))}
           </div>
         ) : currentDayData ? (
           <AnimatePresence mode="wait">
-            <motion.div key={activeDay} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="px-4 pt-4 space-y-4">
+            <motion.div key={activeDay} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="px-4 pt-4 space-y-4">
 
               {/* Day title */}
               <div className="rounded-2xl p-4" style={{ background: `linear-gradient(135deg, ${year.color}, ${year.color}cc)` }}>
@@ -162,85 +178,73 @@ function DayLessonView({
                   <Calendar size={12} style={{ color: "rgba(255,255,255,0.7)" }} />
                   <span className="text-[10px] font-bold text-white/70 uppercase tracking-widest">{currentDayData.label} · Day {activeDay} of {totalDays}</span>
                 </div>
-                <p className="text-white font-black text-lg leading-tight" style={{ fontFamily: "var(--font-playfair)" }}>
-                  {currentDayData.title}
-                </p>
+                <p className="text-white font-black text-lg leading-tight" style={{ fontFamily: "var(--font-playfair)" }}>{currentDayData.title}</p>
               </div>
 
-              {/* Video */}
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Watch first</p>
-                <div className="rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: "16/9" }}>
-                  <iframe
-                    src={currentDayData.video_url + "?rel=0&modestbranding=1"}
-                    title={currentDayData.title}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    className="w-full h-full"
-                    style={{ border: "none" }}
-                  />
-                </div>
-                <div className="flex items-center justify-between mt-1.5 px-0.5">
-                  <p className="text-[10px] text-slate-400">{currentDayData.video_note}</p>
-                  <a
-                    href={currentDayData.video_url.replace("/embed/", "/watch?v=")}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[10px] font-semibold whitespace-nowrap ml-2"
-                    style={{ color: year.color }}
-                  >
-                    Open in YouTube ↗
-                  </a>
-                </div>
-              </div>
-
-              {isDone(activeDay) ? (
-                /* Day already submitted — show confirmation */
-                <div className="rounded-2xl p-4 flex items-center gap-3"
-                  style={{ background: "#f0fdf4", border: "1.5px solid #bbf7d0" }}>
-                  <CheckCircle2 size={20} style={{ color: "#16a34a" }} />
-                  <div>
-                    <p className="font-bold text-sm" style={{ color: "#15803d" }}>Day {activeDay} submitted!</p>
-                    {activeDay < totalDays
-                      ? <p className="text-xs" style={{ color: "#16a34a" }}>{days[activeDay]?.label} is now unlocked →</p>
-                      : <p className="text-xs" style={{ color: "#16a34a" }}>Week 1 complete 🎉</p>
-                    }
+              {/* If this day is locked until tomorrow */}
+              {!isDone(activeDay) && !dayUnlocked(activeDay) ? (
+                <div className="rounded-2xl p-6 text-center" style={{ background: "white", border: "1px solid #e2e8f0" }}>
+                  <div className="w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center" style={{ background: `${year.color}10` }}>
+                    <Lock size={20} style={{ color: year.color }} />
                   </div>
-                </div>
-              ) : !watched ? (
-                /* Watch CTA */
-                <div className="space-y-3">
-                  <div className="rounded-2xl p-4" style={{ background: `${year.color}08`, border: `1px solid ${year.color}20` }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Play size={13} style={{ color: year.color }} />
-                      <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: year.color }}>Instructions</p>
-                    </div>
-                    <p className="text-sm text-slate-700 leading-relaxed">{currentDayData.instructions}</p>
-                  </div>
-                  <button onClick={() => setWatched(true)}
-                    className="w-full py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all hover:opacity-90"
-                    style={{ background: year.color }}>
-                    <CheckCircle2 size={16} /> I&apos;ve watched the video
-                  </button>
+                  <p className="font-bold text-slate-700 text-sm">
+                    {waitingForTomorrow(activeDay) ? "Come back tomorrow" : "Finish the previous day first"}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+                    {waitingForTomorrow(activeDay)
+                      ? "One lesson per day — this keeps your brain fresh. This day unlocks tomorrow. See you then!"
+                      : "Each day unlocks the next once it's submitted."}
+                  </p>
                 </div>
               ) : (
-                /* Response form */
-                <div className="space-y-3">
-                  {justSubmitted ? (
-                    <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }}
-                      className="rounded-2xl p-4 text-center" style={{ background: "#f0fdf4", border: "1.5px solid #bbf7d0" }}>
-                      <CheckCircle2 size={28} className="mx-auto mb-2" style={{ color: "#16a34a" }} />
-                      <p className="font-bold" style={{ color: "#15803d" }}>Submitted!</p>
-                      {activeDay < totalDays && (
-                        <button onClick={() => { setActiveDay(activeDay + 1); setJustSubmitted(false); }}
-                          className="mt-3 flex items-center gap-1.5 mx-auto px-4 py-2 rounded-xl text-sm font-semibold text-white"
-                          style={{ background: year.color }}>
-                          Next: {days[activeDay]?.label} <ArrowRight size={14} />
-                        </button>
-                      )}
-                    </motion.div>
+                <>
+                  {/* Video */}
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Watch first</p>
+                    <div className="rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: "16/9" }}>
+                      <iframe
+                        src={currentDayData.video_url + "?rel=0&modestbranding=1"}
+                        title={currentDayData.title}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen className="w-full h-full" style={{ border: "none" }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between mt-1.5 px-0.5">
+                      <p className="text-[10px] text-slate-400">{currentDayData.video_note}</p>
+                      <a href={currentDayData.video_url.replace("/embed/", "/watch?v=")} target="_blank" rel="noopener noreferrer"
+                        className="text-[10px] font-semibold whitespace-nowrap ml-2" style={{ color: year.color }}>
+                        Open in YouTube ↗
+                      </a>
+                    </div>
+                  </div>
+
+                  {isDone(activeDay) ? (
+                    <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: "#f0fdf4", border: "1.5px solid #bbf7d0" }}>
+                      <CheckCircle2 size={20} style={{ color: "#16a34a" }} />
+                      <div>
+                        <p className="font-bold text-sm" style={{ color: "#15803d" }}>Day {activeDay} submitted!</p>
+                        <p className="text-xs" style={{ color: "#16a34a" }}>
+                          {activeDay < totalDays ? `${nextLabel} unlocks tomorrow` : "Week 1 complete 🎉"}
+                        </p>
+                      </div>
+                    </div>
+                  ) : !watched ? (
+                    <div className="space-y-3">
+                      <div className="rounded-2xl p-4" style={{ background: `${year.color}08`, border: `1px solid ${year.color}20` }}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Play size={13} style={{ color: year.color }} />
+                          <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: year.color }}>Instructions</p>
+                        </div>
+                        <p className="text-sm text-slate-700 leading-relaxed">{currentDayData.instructions}</p>
+                      </div>
+                      <button onClick={() => setWatched(true)}
+                        className="w-full py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all hover:opacity-90"
+                        style={{ background: year.color }}>
+                        <CheckCircle2 size={16} /> I&apos;ve watched the video
+                      </button>
+                    </div>
                   ) : (
-                    <>
+                    <div className="space-y-3">
                       <div className="rounded-2xl p-4" style={{ background: "rgba(26,58,107,0.04)", border: "1px solid rgba(26,58,107,0.1)" }}>
                         <div className="flex items-center gap-2 mb-2">
                           <Dumbbell size={13} className="text-slate-500" />
@@ -251,87 +255,109 @@ function DayLessonView({
 
                       <textarea
                         value={response}
-                        onChange={e => setResponse(e.target.value)}
+                        onChange={(e) => { setResponse(e.target.value); if (feedback && !feedback.pass) setFeedback(null); }}
                         placeholder="Write your response here…"
-                        rows={8}
-                        className="w-full rounded-2xl px-4 py-3.5 text-sm border border-slate-200 bg-white text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-slate-400 transition-colors resize-none leading-relaxed"
+                        rows={9}
+                        className="w-full rounded-2xl px-4 py-3.5 text-sm border bg-white text-slate-700 placeholder:text-slate-300 focus:outline-none transition-colors resize-none leading-relaxed"
+                        style={{ borderColor: meetsMin ? "#bbf7d0" : "#e2e8f0" }}
                       />
 
-                      <button
-                        onClick={submit}
-                        disabled={!response.trim() || submitting}
+                      {/* Word counter */}
+                      <div className="flex items-center justify-between px-1 -mt-1">
+                        <span className="text-[11px] font-medium" style={{ color: meetsMin ? "#16a34a" : "#94a3b8" }}>
+                          {wordCount} / {minWords} words {meetsMin ? "✓" : "minimum"}
+                        </span>
+                      </div>
+
+                      {/* AI feedback (needs work) */}
+                      {feedback && !feedback.pass && (
+                        <div className="rounded-2xl p-3.5 flex gap-2.5" style={{ background: "#fffbeb", border: "1px solid #fde68a" }}>
+                          <AlertCircle size={16} className="shrink-0 mt-0.5" style={{ color: "#d97706" }} />
+                          <div>
+                            <p className="text-[11px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#b45309" }}>Tutor feedback</p>
+                            <p className="text-sm leading-relaxed" style={{ color: "#92400e" }}>{feedback.feedback}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      <button onClick={submit} disabled={!meetsMin || submitting}
                         className="w-full py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all hover:opacity-90 disabled:opacity-40"
                         style={{ background: year.color }}>
                         {submitting
-                          ? <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Saving…</>
-                          : <><Send size={15} /> Submit Day {activeDay}</>
-                        }
+                          ? <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Checking your answer…</>
+                          : <><Send size={15} /> Submit Day {activeDay}</>}
                       </button>
                       <p className="text-center text-[10px] text-slate-300">
-                        Once submitted, Day {activeDay + 1 <= totalDays ? activeDay + 1 : "—"} unlocks.
+                        A tutor checks your answer before it&apos;s accepted.
                       </p>
-                    </>
+                    </div>
                   )}
-                </div>
+                </>
               )}
             </motion.div>
           </AnimatePresence>
         ) : null}
       </div>
+
+      {/* Accepted feedback toast */}
+      <AnimatePresence>
+        {feedback && feedback.pass && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
+            className="fixed bottom-4 left-4 right-4 z-50 max-w-lg mx-auto rounded-2xl p-4 shadow-2xl flex gap-3"
+            style={{ background: "white", border: "1.5px solid #bbf7d0" }}>
+            <div className="w-9 h-9 rounded-full shrink-0 flex items-center justify-center" style={{ background: "#f0fdf4" }}>
+              <Sparkles size={18} style={{ color: "#16a34a" }} />
+            </div>
+            <div className="flex-1">
+              <p className="text-[11px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#15803d" }}>Accepted!</p>
+              <p className="text-sm text-slate-700 leading-relaxed">{feedback.feedback}</p>
+            </div>
+            <button onClick={() => setFeedback(null)} className="shrink-0 text-slate-300 hover:text-slate-500"><X size={16} /></button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-/* ─── Week preview sheet ─────────────────────────────────────── */
-function WeekSheet({ week, yearColor, started, onClose }: { week: Week; yearColor: string; started: boolean; onClose: () => void }) {
+/* ─── Week preview sheet (weeks without day content) ─────────── */
+function WeekSheet({ week, yearColor, onClose }: { week: Week; yearColor: string; onClose: () => void }) {
   return (
     <motion.div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <motion.div
-        className="relative bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg max-h-[85vh] overflow-y-auto z-10 shadow-2xl"
-        initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 28, stiffness: 300 }}>
-        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 rounded-t-3xl sm:rounded-t-2xl"
-          style={{ background: yearColor }}>
+      <motion.div className="relative bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg max-h-[85vh] overflow-y-auto z-10 shadow-2xl"
+        initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 28, stiffness: 300 }}>
+        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 rounded-t-3xl sm:rounded-t-2xl" style={{ background: yearColor }}>
           <div>
             <span className="text-white/70 text-[10px] font-bold uppercase tracking-widest">{week.w}</span>
             <p className="text-white font-black text-lg leading-tight" style={{ fontFamily: "var(--font-playfair)" }}>{week.topic}</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(255,255,255,0.2)" }}>
+          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "rgba(255,255,255,0.2)" }}>
             <X size={16} className="text-white" />
           </button>
         </div>
         <div className="p-5 space-y-4">
           <div className="rounded-2xl p-4" style={{ background: `${yearColor}08`, border: `1px solid ${yearColor}20` }}>
-            <div className="flex items-center gap-2 mb-2">
-              <Lightbulb size={14} style={{ color: yearColor }} />
-              <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: yearColor }}>Concept</p>
-            </div>
+            <div className="flex items-center gap-2 mb-2"><Lightbulb size={14} style={{ color: yearColor }} /><p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: yearColor }}>Concept</p></div>
             <p className="text-sm text-slate-700 leading-relaxed">{week.concept}</p>
           </div>
           {week.exercise && (
             <div className="rounded-2xl p-4 bg-slate-50 border border-slate-100">
-              <div className="flex items-center gap-2 mb-2">
-                <Dumbbell size={14} className="text-slate-500" />
-                <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">This Week&apos;s Exercise</p>
-              </div>
+              <div className="flex items-center gap-2 mb-2"><Dumbbell size={14} className="text-slate-500" /><p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">This Week&apos;s Exercise</p></div>
               <p className="text-sm text-slate-700 leading-relaxed">{week.exercise}</p>
             </div>
           )}
           {week.example && (
             <div className="rounded-2xl p-4" style={{ background: "rgba(196,125,42,0.06)", border: "1px solid rgba(196,125,42,0.15)" }}>
-              <div className="flex items-center gap-2 mb-2">
-                <MapPin size={14} style={{ color: "#c47d2a" }} />
-                <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "#c47d2a" }}>India Example</p>
-              </div>
+              <div className="flex items-center gap-2 mb-2"><MapPin size={14} style={{ color: "#c47d2a" }} /><p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "#c47d2a" }}>India Example</p></div>
               <p className="text-sm leading-relaxed" style={{ color: "#92500f" }}>{week.example}</p>
             </div>
           )}
           <div className="rounded-2xl p-4 text-center" style={{ background: "#f8fafc", border: "1px dashed #e2e8f0" }}>
             <Lock size={16} className="mx-auto mb-2 text-slate-300" />
-            <p className="text-xs text-slate-400">Full lesson content coming soon for this week</p>
+            <p className="text-xs text-slate-400">Full day-by-day lesson content coming soon for this week</p>
           </div>
         </div>
       </motion.div>
@@ -341,10 +367,10 @@ function WeekSheet({ week, yearColor, started, onClose }: { week: Week; yearColo
 
 /* ─── Module path (week nodes) ───────────────────────────────── */
 function ModulePath({
-  year, moduleIndex, started, completedDays, onOpenLesson,
+  year, moduleIndex, started, progress, onOpenLesson,
 }: {
   year: Year; moduleIndex: number; started: boolean;
-  completedDays: Set<string>; onOpenLesson: (week: Week) => void;
+  progress: Progress; onOpenLesson: (week: Week) => void;
 }) {
   const [selectedWeek, setSelectedWeek] = useState<Week | null>(null);
   const mod = year.modules[moduleIndex];
@@ -352,11 +378,11 @@ function ModulePath({
 
   const isWeekUnlocked = (idx: number) => {
     if (!started) return false;
-    if (idx === 0) return true; // W1 always unlocked when cohort live
-    // W2+ unlocks only when all days of W1 are submitted
+    if (idx === 0) return true; // W1 unlocked once cohort is live
     const w1 = mod.weeks_detail[0];
     if (!w1.days) return false;
-    return w1.days.every((_, di) => completedDays.has(`${w1.w}-D${di + 1}`));
+    // W2+ unlocks only when all 5 days of W1 are submitted
+    return w1.days.every((_, di) => `${w1.w}-D${di + 1}` in progress.completed);
   };
 
   return (
@@ -367,24 +393,18 @@ function ModulePath({
           const boss = isBoss(i);
           const hasDays = !!week.days?.length;
           const isRight = i % 2 !== 0;
-
           return (
             <div key={i} className={`flex items-center mb-3 ${isRight ? "justify-end" : "justify-start"}`}>
               {isRight && <div className="flex-1 h-px mx-2" style={{ background: `${year.color}25` }} />}
               <motion.button
                 whileHover={unlocked ? { scale: 1.08 } : {}}
                 whileTap={unlocked ? { scale: 0.95 } : {}}
-                onClick={() => {
-                  if (!unlocked) return;
-                  if (hasDays) onOpenLesson(week);
-                  else setSelectedWeek(week);
-                }}
+                onClick={() => { if (!unlocked) return; if (hasDays) onOpenLesson(week); else setSelectedWeek(week); }}
                 className="relative flex flex-col items-center gap-1.5"
                 style={{ minWidth: boss ? 80 : 64, cursor: unlocked ? "pointer" : "default" }}>
                 <div className="relative flex items-center justify-center rounded-full font-black shadow-sm transition-all"
                   style={{
-                    width: boss ? 72 : 56,
-                    height: boss ? 72 : 56,
+                    width: boss ? 72 : 56, height: boss ? 72 : 56,
                     background: boss
                       ? unlocked ? `linear-gradient(135deg, ${year.color}, ${year.color}cc)` : `${year.color}20`
                       : unlocked ? year.color : `${year.color}15`,
@@ -394,29 +414,17 @@ function ModulePath({
                   {boss
                     ? <Trophy size={26} style={{ color: unlocked ? "white" : year.color, opacity: unlocked ? 1 : 0.5 }} />
                     : unlocked
-                      ? (hasDays
-                        ? <Play size={18} style={{ color: "white" }} />
-                        : <span style={{ fontSize: 15, fontWeight: 900, color: "white" }}>{i + 1}</span>)
-                      : <Lock size={17} style={{ color: year.color, opacity: 0.5 }} />
-                  }
-                  <span className="absolute -top-1.5 -right-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-full text-white"
-                    style={{ background: year.color }}>
+                      ? (hasDays ? <Play size={18} style={{ color: "white" }} /> : <span style={{ fontSize: 15, fontWeight: 900, color: "white" }}>{i + 1}</span>)
+                      : <Lock size={17} style={{ color: year.color, opacity: 0.5 }} />}
+                  <span className="absolute -top-1.5 -right-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-full text-white" style={{ background: year.color }}>
                     {week.w.replace("W", "")}
                   </span>
                 </div>
-                <p className="text-[10px] font-semibold text-center leading-tight max-w-[76px]"
-                  style={{ color: unlocked ? year.color : "#94a3b8" }}>
-                  {boss
-                    ? "🏆 Mission"
-                    : hasDays && unlocked
-                      ? "5-Day Lesson"
-                      : week.topic.split(" ").slice(0, 3).join(" ")}
+                <p className="text-[10px] font-semibold text-center leading-tight max-w-[76px]" style={{ color: unlocked ? year.color : "#94a3b8" }}>
+                  {boss ? "🏆 Mission" : hasDays && unlocked ? "5-Day Lesson" : week.topic.split(" ").slice(0, 3).join(" ")}
                 </p>
                 {hasDays && unlocked && (
-                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full"
-                    style={{ background: `${year.color}18`, color: year.color }}>
-                    Interactive
-                  </span>
+                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: `${year.color}18`, color: year.color }}>Interactive</span>
                 )}
               </motion.button>
               {!isRight && <div className="flex-1 h-px mx-2" style={{ background: `${year.color}25` }} />}
@@ -425,10 +433,7 @@ function ModulePath({
         })}
       </div>
       <AnimatePresence>
-        {selectedWeek && (
-          <WeekSheet week={selectedWeek} yearColor={year.color} started={isWeekUnlocked(mod.weeks_detail.indexOf(selectedWeek))}
-            onClose={() => setSelectedWeek(null)} />
-        )}
+        {selectedWeek && <WeekSheet week={selectedWeek} yearColor={year.color} onClose={() => setSelectedWeek(null)} />}
       </AnimatePresence>
     </>
   );
@@ -442,7 +447,7 @@ export default function Pillar5Course({
   studentId?: string; courseCode?: string;
 }) {
   const years = allowedYearIds?.length
-    ? PILLAR5_YEARS.filter(y => allowedYearIds.includes(y.id))
+    ? PILLAR5_YEARS.filter((y) => allowedYearIds.includes(y.id))
     : PILLAR5_YEARS;
   const restricted = !!(allowedYearIds?.length);
 
@@ -450,35 +455,28 @@ export default function Pillar5Course({
   const [activeModuleIdx, setActiveModuleIdx] = useState(0);
   const [showArc, setShowArc] = useState(false);
   const [selectedLesson, setSelectedLesson] = useState<Week | null>(null);
-  const [completedDays, setCompletedDays] = useState<Set<string>>(new Set());
+  const [progress, setProgress] = useState<Progress>({ completed: {}, today: "" });
 
-  const year = years.find(y => y.id === activeYearId) ?? years[0];
-  const yearIndex = years.findIndex(y => y.id === activeYearId);
+  const year = years.find((y) => y.id === activeYearId) ?? years[0];
+  const yearIndex = years.findIndex((y) => y.id === activeYearId);
 
-  // Fetch lesson progress
   useEffect(() => {
     if (!studentId || !courseCode) return;
     fetch(`/api/student/lesson-progress?student_id=${studentId}&course_code=${courseCode}`)
-      .then(r => r.json())
-      .then(d => setCompletedDays(new Set<string>(d.completedDays ?? [])))
+      .then((r) => r.json())
+      .then((d) => setProgress({ completed: d.completed ?? {}, today: d.today ?? "" }))
       .catch(() => {});
   }, [studentId, courseCode]);
 
-  const handleDayComplete = (key: string) => {
-    setCompletedDays(prev => new Set([...prev, key]));
+  const handleDayComplete = (key: string, date: string) => {
+    setProgress((p) => ({ ...p, completed: { ...p.completed, [key]: date } }));
   };
 
-  // Render DayLessonView when a lesson week is open
   if (selectedLesson) {
     return (
       <DayLessonView
-        week={selectedLesson}
-        year={year}
-        studentId={studentId}
-        courseCode={courseCode}
-        completedDays={completedDays}
-        onDayComplete={handleDayComplete}
-        onClose={() => setSelectedLesson(null)}
+        week={selectedLesson} year={year} studentId={studentId} courseCode={courseCode}
+        progress={progress} onDayComplete={handleDayComplete} onClose={() => setSelectedLesson(null)}
       />
     );
   }
@@ -486,35 +484,25 @@ export default function Pillar5Course({
   return (
     <div className="min-h-screen" style={{ background: "#f1f5f9" }}>
       {/* Top bar */}
-      <div className="sticky top-0 z-30 flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-100"
-        style={{ boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
+      <div className="sticky top-0 z-30 flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-100" style={{ boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
         <button onClick={onBack} className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-colors">
           <ChevronLeft size={18} className="text-slate-500" />
         </button>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-slate-800 text-sm truncate">Critical Thinking & Communication</p>
-          <p className="text-[10px] text-slate-400">
-            {restricted ? `Pillar 5 · ${year.label} · ${year.title}` : "Pillar 5 · Class 6–12 · 7 Years"}
-          </p>
+          <p className="text-[10px] text-slate-400">{restricted ? `Pillar 5 · ${year.label} · ${year.title}` : "Pillar 5 · Class 6–12 · 7 Years"}</p>
         </div>
         {!restricted && (
-          <button onClick={() => setShowArc(!showArc)}
-            className="text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all"
-            style={{ background: showArc ? "#1a3a6b" : "#f1f5f9", color: showArc ? "white" : "#64748b" }}>
-            7-Year Arc
-          </button>
+          <button onClick={() => setShowArc(!showArc)} className="text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all"
+            style={{ background: showArc ? "#1a3a6b" : "#f1f5f9", color: showArc ? "white" : "#64748b" }}>7-Year Arc</button>
         )}
       </div>
 
-      {/* 7-Year Arc overlay */}
       <AnimatePresence>
         {showArc && (
           <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
-            className="mx-4 mt-3 rounded-2xl overflow-hidden shadow-lg z-20"
-            style={{ border: "1px solid rgba(26,58,107,0.15)" }}>
-            <div className="px-5 py-3" style={{ background: "#1a3a6b" }}>
-              <p className="text-white font-bold text-sm">Every skill compounds on the previous one</p>
-            </div>
+            className="mx-4 mt-3 rounded-2xl overflow-hidden shadow-lg z-20" style={{ border: "1px solid rgba(26,58,107,0.15)" }}>
+            <div className="px-5 py-3" style={{ background: "#1a3a6b" }}><p className="text-white font-bold text-sm">Every skill compounds on the previous one</p></div>
             {PILLAR5_ARC.map((a, i) => {
               const y = PILLAR5_YEARS[i];
               return (
@@ -535,7 +523,6 @@ export default function Pillar5Course({
         )}
       </AnimatePresence>
 
-      {/* Year selector */}
       {!restricted && (
         <div className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide">
           {years.map((y) => {
@@ -552,23 +539,18 @@ export default function Pillar5Course({
         </div>
       )}
 
-      {/* Year hero card */}
+      {/* Year hero */}
       <AnimatePresence mode="wait">
-        <motion.div key={year.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.25 }} className="mx-4 mb-4 mt-3">
-          <div className="rounded-2xl p-5 relative overflow-hidden"
-            style={{ background: `linear-gradient(135deg, ${year.color} 0%, ${year.color}cc 100%)` }}>
-            <div className="absolute right-0 top-0 w-32 h-32 rounded-full blur-3xl opacity-30"
-              style={{ background: "rgba(255,255,255,0.5)", transform: "translate(30%,-30%)" }} />
+        <motion.div key={year.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }} className="mx-4 mb-4 mt-3">
+          <div className="rounded-2xl p-5 relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${year.color} 0%, ${year.color}cc 100%)` }}>
+            <div className="absolute right-0 top-0 w-32 h-32 rounded-full blur-3xl opacity-30" style={{ background: "rgba(255,255,255,0.5)", transform: "translate(30%,-30%)" }} />
             <div className="flex items-start justify-between mb-3">
               <div>
                 <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest mb-1">{year.label} · 35 Weeks · 5 Modules</p>
                 <h2 className="text-white font-black text-xl leading-tight" style={{ fontFamily: "var(--font-playfair)" }}>{year.title}</h2>
                 <p className="text-white/80 text-xs mt-1 italic">&ldquo;{year.tagline}&rdquo;</p>
               </div>
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ml-3" style={{ background: "rgba(255,255,255,0.2)" }}>
-                <Target size={20} className="text-white" />
-              </div>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ml-3" style={{ background: "rgba(255,255,255,0.2)" }}><Target size={20} className="text-white" /></div>
             </div>
             <p className="text-white/80 text-xs leading-relaxed mb-4">{year.description}</p>
             <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.15)" }}>
@@ -588,12 +570,9 @@ export default function Pillar5Course({
             <button key={mod.id} onClick={() => setActiveModuleIdx(i)}
               className="shrink-0 flex flex-col items-start px-3.5 py-2.5 rounded-xl transition-all"
               style={{ background: activeModuleIdx === i ? year.color : "white", border: `1.5px solid ${activeModuleIdx === i ? year.color : "#e2e8f0"}`, minWidth: 110 }}>
-              <span className="text-[9px] font-bold mb-0.5 uppercase tracking-wider"
-                style={{ color: activeModuleIdx === i ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>{mod.weeks}</span>
-              <span className="text-xs font-bold leading-tight"
-                style={{ color: activeModuleIdx === i ? "white" : "#64748b" }}>{mod.title}</span>
-              <span className="text-[10px] mt-0.5 leading-tight"
-                style={{ color: activeModuleIdx === i ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>{mod.weeks_detail.length} weeks</span>
+              <span className="text-[9px] font-bold mb-0.5 uppercase tracking-wider" style={{ color: activeModuleIdx === i ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>{mod.weeks}</span>
+              <span className="text-xs font-bold leading-tight" style={{ color: activeModuleIdx === i ? "white" : "#64748b" }}>{mod.title}</span>
+              <span className="text-[10px] mt-0.5 leading-tight" style={{ color: activeModuleIdx === i ? "rgba(255,255,255,0.7)" : "#94a3b8" }}>{mod.weeks_detail.length} weeks</span>
             </button>
           ))}
         </div>
@@ -602,11 +581,9 @@ export default function Pillar5Course({
       {/* Module content */}
       <AnimatePresence mode="wait">
         <motion.div key={`${year.id}-${activeModuleIdx}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-          {/* Module header */}
           <div className="mx-4 mb-4 rounded-2xl p-4" style={{ background: `${year.color}10`, border: `1px solid ${year.color}25` }}>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-white font-black text-sm"
-                style={{ background: year.color }}>M{activeModuleIdx + 1}</div>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-white font-black text-sm" style={{ background: year.color }}>M{activeModuleIdx + 1}</div>
               <div>
                 <p className="font-bold text-slate-800 text-sm">{year.modules[activeModuleIdx].title}</p>
                 <p className="text-xs text-slate-500 mt-0.5">{year.modules[activeModuleIdx].subtitle}</p>
@@ -614,9 +591,7 @@ export default function Pillar5Course({
             </div>
           </div>
 
-          {/* Week nodes */}
-          <div className="mx-4 bg-white rounded-2xl overflow-hidden mb-4 border border-slate-100"
-            style={{ boxShadow: "0 1px 12px rgba(0,0,0,0.05)" }}>
+          <div className="mx-4 bg-white rounded-2xl overflow-hidden mb-4 border border-slate-100" style={{ boxShadow: "0 1px 12px rgba(0,0,0,0.05)" }}>
             <div className="px-5 py-3 border-b border-slate-50 flex items-center justify-between">
               <p className="text-xs font-bold text-slate-600">{year.modules[activeModuleIdx].weeks_detail.length} weeks</p>
               <div className="flex items-center gap-1">
@@ -625,16 +600,9 @@ export default function Pillar5Course({
                   : <><Lock size={11} className="text-slate-300" /><p className="text-[10px] text-slate-400">Unlocks at cohort start</p></>}
               </div>
             </div>
-            <ModulePath
-              year={year}
-              moduleIndex={activeModuleIdx}
-              started={started}
-              completedDays={completedDays}
-              onOpenLesson={setSelectedLesson}
-            />
+            <ModulePath year={year} moduleIndex={activeModuleIdx} started={started} progress={progress} onOpenLesson={setSelectedLesson} />
           </div>
 
-          {/* Assessment */}
           <div className="mx-4 mb-6">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Assessment Breakdown</p>
             <div className="grid grid-cols-2 gap-2">
@@ -650,11 +618,11 @@ export default function Pillar5Course({
         </motion.div>
       </AnimatePresence>
 
-      {/* Bottom nav arrows */}
+      {/* Bottom nav */}
       <div className="sticky bottom-0 flex items-center justify-between gap-3 px-4 py-3 bg-white border-t border-slate-100">
         <button
           onClick={() => {
-            if (activeModuleIdx > 0) setActiveModuleIdx(m => m - 1);
+            if (activeModuleIdx > 0) setActiveModuleIdx((m) => m - 1);
             else if (yearIndex > 0) { setActiveYearId(years[yearIndex - 1].id); setActiveModuleIdx(years[yearIndex - 1].modules.length - 1); }
           }}
           disabled={yearIndex <= 0 && activeModuleIdx === 0}
@@ -663,13 +631,12 @@ export default function Pillar5Course({
         </button>
         <div className="flex gap-1">
           {year.modules.map((_, i) => (
-            <div key={i} className="w-1.5 h-1.5 rounded-full transition-all"
-              style={{ background: i === activeModuleIdx ? year.color : "#e2e8f0" }} />
+            <div key={i} className="w-1.5 h-1.5 rounded-full transition-all" style={{ background: i === activeModuleIdx ? year.color : "#e2e8f0" }} />
           ))}
         </div>
         <button
           onClick={() => {
-            if (activeModuleIdx < year.modules.length - 1) setActiveModuleIdx(m => m + 1);
+            if (activeModuleIdx < year.modules.length - 1) setActiveModuleIdx((m) => m + 1);
             else if (yearIndex < years.length - 1) { setActiveYearId(years[yearIndex + 1].id); setActiveModuleIdx(0); }
           }}
           disabled={yearIndex >= years.length - 1 && activeModuleIdx === year.modules.length - 1}
