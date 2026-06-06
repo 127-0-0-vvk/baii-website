@@ -1,9 +1,20 @@
+export type LessonDay = {
+  day: number;
+  label: string;        // "Monday", "Tuesday" …
+  title: string;        // Short task title
+  video_url: string;    // YouTube embed URL (https://www.youtube.com/embed/VIDEO_ID)
+  video_note: string;   // Caption shown under the video
+  instructions: string; // What to do before writing
+  prompt: string;       // What to write in the text box
+};
+
 export type Week = {
   w: string;
   topic: string;
   concept: string;
   exercise: string;
   example: string;
+  days?: LessonDay[];   // Present only on weeks with day-by-day lesson content
 };
 
 export type Module = {
@@ -42,7 +53,43 @@ export const PILLAR5_YEARS: Year[] = [
     finalMission: "Myth-Buster Report: Student picks one widely-believed Indian claim, investigates it completely, writes a 2-page verdict, and presents to cohort + one invited adult. Judged on reasoning quality — not whether the verdict is 'right.'",
     modules: [
       { id:"m1", title:"Observation", weeks:"Wk 1–7", subtitle:"What am I actually seeing vs assuming?", weeks_detail:[
-        {w:"W1",topic:"Look vs See",concept:"The invisible gorilla. Brain fills gaps automatically. Why eyewitnesses are unreliable.",exercise:"Watch a 2-min Indian street video. Write 15 specific observations. Compare with partner — who noticed different things?",example:"Two people watch the same cricket match — one notices the wrong umpire decision, other misses it completely. Why?"},
+        {w:"W1",topic:"Look vs See",concept:"The invisible gorilla. Brain fills gaps automatically. Why eyewitnesses are unreliable.",exercise:"Watch a 2-min Indian street video. Write 15 specific observations. Compare with partner — who noticed different things?",example:"Two people watch the same cricket match — one notices the wrong umpire decision, other misses it completely. Why?",days:[
+          {
+            day:1,label:"Monday",title:"Your First Observation List",
+            video_url:"https://www.youtube.com/embed/r3Rd_5w-EOQQ",
+            video_note:"A 2-minute walk through a busy Indian street. Watch once — no pausing, no rewinding.",
+            instructions:"Watch the video once without stopping. Just observe. Then come back and write your response below.",
+            prompt:"Write 15 specific things you SAW in the video. Number each one (1–15).\n\nOnly write what your eyes actually saw — not what you guessed or assumed.\n\n❌ Wrong: \"A man going to work.\"\n✅ Right: \"A man wearing a white shirt walking quickly past a red wall.\"\n\nWrite all 15 now.",
+          },
+          {
+            day:2,label:"Tuesday",title:"I See vs I Assume",
+            video_url:"https://www.youtube.com/embed/FZaGb4g6l3Q",
+            video_note:"A 2-minute clip of a busy Indian market. Watch once.",
+            instructions:"Watch the video once. This time, pay attention to what your brain does automatically — is it observing, or filling in gaps it didn't actually see?",
+            prompt:"Write 5 'I SEE' statements and 5 'I ASSUME' statements from the video.\n\nFormat each one like this:\nI SEE → (something visually confirmed on screen)\nI ASSUME → (something your brain added that wasn't shown)\n\nExample:\nI SEE → a woman carrying a yellow bag\nI ASSUME → she is returning from shopping\n\nNow write your 10 statements.",
+          },
+          {
+            day:3,label:"Wednesday",title:"The Invisible Gorilla",
+            video_url:"https://www.youtube.com/embed/vJG698U2Mvo",
+            video_note:"A famous psychology experiment. The video will give you a task — follow it. Watch once only, no rewinding.",
+            instructions:"This video will ask you to count something. Do it carefully. Watch once — no rewind, no pause. Come back and answer the questions below.",
+            prompt:"Answer all three:\n\n1) What were you asked to count, and what was your count?\n\n2) What unexpected thing appeared in the video? Did you notice it while watching, or only when told?\n\n3) In 2–3 sentences: why do you think this happens? What does it tell you about how your brain works when it is focused on one thing?",
+          },
+          {
+            day:4,label:"Thursday",title:"Watch It Again",
+            video_url:"https://www.youtube.com/embed/r3Rd_5w-EOQQ",
+            video_note:"The same street video from Monday. Watch it again — you are a different observer now.",
+            instructions:"This is the exact video you watched on Monday. Watch it again right now. Then answer below.",
+            prompt:"Answer all three:\n\n1) List 3 things you notice today that you completely missed on Day 1.\n\n2) Why did you miss them the first time? Write 2–3 honest sentences.\n\n3) What does this re-watch tell you about how much a single viewing actually captures?",
+          },
+          {
+            day:5,label:"Friday",title:"Week 1 Wrap-Up",
+            video_url:"https://www.youtube.com/embed/U7K1GQfTLnc",
+            video_note:"A new short clip — a scene from everyday Indian life. Watch once.",
+            instructions:"Final task for Week 1. Watch the video once, then take your time with all three questions below.",
+            prompt:"1) Write 3 things you can CONFIRM from this video — things clearly visible on screen.\n\n2) Write 3 things your brain automatically ASSUMED that were not actually shown.\n\n3) Complete this sentence in 2–3 sentences:\n\"Before this week, I thought observation meant ___. Now I realise ___.\"",
+          },
+        ]},
         {w:"W2",topic:"Assumption vs Fact",concept:"'I see...' vs 'I think...' Assumptions lead to wrong conclusions.",exercise:"5 images — write separately 'I see...' and 'I assume...' for each. Compare with class.",example:"Photo of man in torn clothes outside a shop. What do you see vs assume?"},
         {w:"W3",topic:"Memory is Not a Recording",concept:"Memory is reconstructive, not playback. Why two people remember the same event differently.",exercise:"Read a story. Wait 10 mins. Answer 10 questions without re-reading. Where did memory fail?",example:"Family members at the same wedding remember different things. Who is 'right'?"},
         {w:"W4",topic:"Numbers Lie If You Let Them",concept:"Percentage vs absolute numbers. Cherry-picking. Questions to ask when you see a statistic.",exercise:"3 real Indian ads with statistics. For each: what questions would a detective ask?",example:"'Crime increased 100%!' — from 1 case to 2 cases. Technically true, completely misleading."},

@@ -129,27 +129,6 @@ function DashboardTab({ profile }: { profile: Profile }) {
         </div>
       </div>
 
-      {/* Quick links */}
-      <div>
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Quick Access</p>
-        <div className="space-y-2">
-          {[
-            { icon: <Zap size={16} />, label: "Energy Track", sub: "ETF → ET01–ET05", color: "#c47d2a" },
-            { icon: <Cpu size={16} />, label: "Semiconductor Track", sub: "SCF → SC01–SC03", color: "#4a9fd4" },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center gap-4 p-4 rounded-2xl" style={{ background: "#fff", boxShadow: "0 1px 8px rgba(0,0,0,0.05)" }}>
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${item.color}15`, color: item.color }}>
-                {item.icon}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-slate-700 text-sm">{item.label}</p>
-                <p className="text-xs text-slate-400">{item.sub}</p>
-              </div>
-              <ChevronRight size={14} className="text-slate-300 shrink-0" />
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
@@ -197,7 +176,8 @@ function CoursesTab({ studentId }: { studentId: string }) {
   const started = pillar5.length > 0 && pillar5.every(c => c.started);
 
   if (openCourse === "pillar5") {
-    return <Pillar5Course onBack={() => setOpenCourse(null)} allowedYearIds={allowedYearIds} started={started} />;
+    const code = pillar5[0]?.code ?? "P5-C6";
+    return <Pillar5Course onBack={() => setOpenCourse(null)} allowedYearIds={allowedYearIds} started={started} studentId={studentId} courseCode={code} />;
   }
 
   if (loading) {

@@ -130,14 +130,21 @@ function AssignModal({ userId, userName, onClose, onDone }: { userId: string; us
 }
 
 /* ─── STUDENT DETAIL PANEL ────────────────────────────────── */
+type LessonResponse = { course_code: string; week_num: string; day_num: number; response: string; submitted_at: string };
+const DAY_LABELS = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
 function StudentPanel({ student, onClose, onRefresh }: { student: Profile; onClose: () => void; onRefresh: () => void }) {
   const [courses, setCourses] = useState<StudentCourse[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [lessonResponses, setLessonResponses] = useState<LessonResponse[]>([]);
+  const [expandedResponse, setExpandedResponse] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/admin/student-courses?student_id=${student.id}`)
       .then(r => r.json()).then(d => { setCourses(d.enrollments ?? []); setLoadingCourses(false); });
+    fetch(`/api/admin/lesson-responses?student_id=${student.id}`)
+      .then(r => r.json()).then(d => setLessonResponses(d.responses ?? []));
   }, [student.id]);
 
   const info = [
@@ -233,6 +240,46 @@ function StudentPanel({ student, onClose, onRefresh }: { student: Profile; onClo
                 </div>
               )}
             </div>
+
+            {/* Lesson responses */}
+            {lessonResponses.length > 0 && (
+              <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-4 pt-3 pb-2">
+                  Lesson Responses ({lessonResponses.length})
+                </p>
+                <div className="divide-y divide-slate-50">
+                  {lessonResponses.map(r => {
+                    const key = `${r.course_code}-${r.week_num}-D${r.day_num}`;
+                    const isOpen = expandedResponse === key;
+                    return (
+                      <div key={key}>
+                        <button onClick={() => setExpandedResponse(isOpen ? null : key)}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left">
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-[10px] font-black text-white"
+                            style={{ background: "#1a3a6b" }}>
+                            D{r.day_num}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-slate-700">{r.week_num} · Day {r.day_num} — {DAY_LABELS[r.day_num]}</p>
+                            <p className="text-[10px] text-slate-400">{r.course_code} · {new Date(r.submitted_at).toLocaleDateString("en-IN")}</p>
+                          </div>
+                          <ChevronDown size={14} className="text-slate-300 transition-transform shrink-0"
+                            style={{ transform: isOpen ? "rotate(180deg)" : "none" }} />
+                        </button>
+                        {isOpen && (
+                          <div className="px-4 pb-3">
+                            <div className="rounded-xl p-3 text-xs text-slate-700 leading-relaxed whitespace-pre-wrap"
+                              style={{ background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+                              {r.response}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Suggested actions */}
             <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
