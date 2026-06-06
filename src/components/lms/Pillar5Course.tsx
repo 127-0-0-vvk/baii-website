@@ -180,7 +180,18 @@ function DayLessonView({
                     style={{ border: "none" }}
                   />
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1.5 px-0.5">{currentDayData.video_note}</p>
+                <div className="flex items-center justify-between mt-1.5 px-0.5">
+                  <p className="text-[10px] text-slate-400">{currentDayData.video_note}</p>
+                  <a
+                    href={currentDayData.video_url.replace("/embed/", "/watch?v=")}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] font-semibold whitespace-nowrap ml-2"
+                    style={{ color: year.color }}
+                  >
+                    Open in YouTube ↗
+                  </a>
+                </div>
               </div>
 
               {isDone(activeDay) ? (
