@@ -10,7 +10,7 @@ import {
 import { PILLAR5_YEARS, PILLAR5_ARC, type Year, type Week } from "@/data/pillar5";
 
 /* ─── Week detail sheet ──────────────────────────────────────── */
-function WeekSheet({ week, yearColor, onClose }: { week: Week; yearColor: string; onClose: () => void }) {
+function WeekSheet({ week, yearColor, started, onClose }: { week: Week; yearColor: string; started: boolean; onClose: () => void }) {
   return (
     <motion.div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
@@ -72,8 +72,7 @@ function WeekSheet({ week, yearColor, onClose }: { week: Week; yearColor: string
           {/* CTA */}
           <button className="w-full py-3 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 flex items-center justify-center gap-2"
             style={{ background: yearColor }}>
-            <Lock size={14} />
-            Unlocks when cohort begins
+            {started ? <><ArrowRight size={14} /> Start this lesson</> : <><Lock size={14} /> Unlocks when cohort begins</>}
           </button>
         </div>
       </motion.div>
@@ -82,7 +81,7 @@ function WeekSheet({ week, yearColor, onClose }: { week: Week; yearColor: string
 }
 
 /* ─── Module path ────────────────────────────────────────────── */
-function ModulePath({ year, moduleIndex }: { year: Year; moduleIndex: number }) {
+function ModulePath({ year, moduleIndex, started }: { year: Year; moduleIndex: number; started: boolean }) {
   const [selectedWeek, setSelectedWeek] = useState<Week | null>(null);
   const mod = year.modules[moduleIndex];
   const isBoss = (i: number) => i === mod.weeks_detail.length - 1;
@@ -119,7 +118,7 @@ function ModulePath({ year, moduleIndex }: { year: Year; moduleIndex: number }) 
                     fontSize: boss ? 22 : 16,
                   }}
                 >
-                  {boss ? <Trophy size={28} /> : <Lock size={18} style={{ opacity: 0.6 }} />}
+                  {boss ? <Trophy size={28} /> : started ? <span style={{ fontSize: boss ? 22 : 16 }}>{i + 1}</span> : <Lock size={18} style={{ opacity: 0.6 }} />}
                   {/* Week badge */}
                   <span
                     className="absolute -top-1.5 -right-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-full text-white"
@@ -147,7 +146,7 @@ function ModulePath({ year, moduleIndex }: { year: Year; moduleIndex: number }) 
 
       <AnimatePresence>
         {selectedWeek && (
-          <WeekSheet week={selectedWeek} yearColor={year.color} onClose={() => setSelectedWeek(null)} />
+          <WeekSheet week={selectedWeek} yearColor={year.color} started={started} onClose={() => setSelectedWeek(null)} />
         )}
       </AnimatePresence>
     </>
@@ -155,13 +154,20 @@ function ModulePath({ year, moduleIndex }: { year: Year; moduleIndex: number }) 
 }
 
 /* ─── Main course view ───────────────────────────────────────── */
-export default function Pillar5Course({ onBack }: { onBack: () => void }) {
-  const [activeYearId, setActiveYearId] = useState("y6");
+export default function Pillar5Course({ onBack, allowedYearIds, started = false }: { onBack: () => void; allowedYearIds?: string[]; started?: boolean }) {
+  // Restrict to the years the student is actually enrolled in (if provided)
+  const years = allowedYearIds && allowedYearIds.length
+    ? PILLAR5_YEARS.filter(y => allowedYearIds.includes(y.id))
+    : PILLAR5_YEARS;
+  const singleYear = years.length === 1;
+  const restricted = !!(allowedYearIds && allowedYearIds.length); // student enrolled in a subset
+
+  const [activeYearId, setActiveYearId] = useState(years[0]?.id ?? "y6");
   const [activeModuleIdx, setActiveModuleIdx] = useState(0);
   const [showArc, setShowArc] = useState(false);
 
-  const year = PILLAR5_YEARS.find(y => y.id === activeYearId)!;
-  const yearIndex = PILLAR5_YEARS.findIndex(y => y.id === activeYearId);
+  const year = years.find(y => y.id === activeYearId) ?? years[0];
+  const yearIndex = years.findIndex(y => y.id === activeYearId);
 
   return (
     <div className="min-h-screen" style={{ background: "#f1f5f9" }}>
@@ -173,15 +179,19 @@ export default function Pillar5Course({ onBack }: { onBack: () => void }) {
         </button>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-slate-800 text-sm truncate">Critical Thinking & Communication</p>
-          <p className="text-[10px] text-slate-400">Pillar 5 · Class 6–12 · 7 Years</p>
+          <p className="text-[10px] text-slate-400">
+            {singleYear ? `Pillar 5 · ${year.label} · ${year.title}` : "Pillar 5 · Class 6–12 · 7 Years"}
+          </p>
         </div>
-        <button
-          onClick={() => setShowArc(!showArc)}
-          className="text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all"
-          style={{ background: showArc ? "#1a3a6b" : "#f1f5f9", color: showArc ? "white" : "#64748b" }}
-        >
-          7-Year Arc
-        </button>
+        {!restricted && (
+          <button
+            onClick={() => setShowArc(!showArc)}
+            className="text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all"
+            style={{ background: showArc ? "#1a3a6b" : "#f1f5f9", color: showArc ? "white" : "#64748b" }}
+          >
+            7-Year Arc
+          </button>
+        )}
       </div>
 
       {/* 7-Year Arc overlay */}
@@ -218,21 +228,26 @@ export default function Pillar5Course({ onBack }: { onBack: () => void }) {
         )}
       </AnimatePresence>
 
-      {/* Year selector — horizontal scroll */}
-      <div className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide">
-        {PILLAR5_YEARS.map((y, i) => (
-          <button key={y.id} onClick={() => { setActiveYearId(y.id); setActiveModuleIdx(0); }}
-            className="shrink-0 flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all"
-            style={{
-              background: activeYearId === y.id ? y.color : "white",
-              border: `1.5px solid ${activeYearId === y.id ? y.color : "#e2e8f0"}`,
-              minWidth: 72,
-            }}>
-            <span className="text-[10px] font-black" style={{ color: activeYearId === y.id ? "rgba(255,255,255,0.8)" : "#94a3b8" }}>C{6 + i}</span>
-            <span className="text-xs font-bold" style={{ color: activeYearId === y.id ? "white" : "#64748b" }}>{y.label.replace("Class ", "")}</span>
-          </button>
-        ))}
-      </div>
+      {/* Year selector — horizontal scroll (hidden when enrolled in a restricted set) */}
+      {!restricted && (
+        <div className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide">
+          {years.map((y) => {
+            const cls = y.label.replace("Class ", "");
+            return (
+              <button key={y.id} onClick={() => { setActiveYearId(y.id); setActiveModuleIdx(0); }}
+                className="shrink-0 flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all"
+                style={{
+                  background: activeYearId === y.id ? y.color : "white",
+                  border: `1.5px solid ${activeYearId === y.id ? y.color : "#e2e8f0"}`,
+                  minWidth: 72,
+                }}>
+                <span className="text-[10px] font-black" style={{ color: activeYearId === y.id ? "rgba(255,255,255,0.8)" : "#94a3b8" }}>C{cls}</span>
+                <span className="text-xs font-bold" style={{ color: activeYearId === y.id ? "white" : "#64748b" }}>{cls}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Year hero card */}
       <AnimatePresence mode="wait">
@@ -306,11 +321,14 @@ export default function Pillar5Course({ onBack }: { onBack: () => void }) {
             <div className="px-5 py-3 border-b border-slate-50 flex items-center justify-between">
               <p className="text-xs font-bold text-slate-600">{year.modules[activeModuleIdx].weeks_detail.length} lessons</p>
               <div className="flex items-center gap-1">
-                <Lock size={11} className="text-slate-300" />
-                <p className="text-[10px] text-slate-400">Unlocks at cohort start</p>
+                {started ? (
+                  <><CheckCircle2 size={11} style={{ color: year.color }} /><p className="text-[10px] font-semibold" style={{ color: year.color }}>Unlocked — cohort live</p></>
+                ) : (
+                  <><Lock size={11} className="text-slate-300" /><p className="text-[10px] text-slate-400">Unlocks at cohort start</p></>
+                )}
               </div>
             </div>
-            <ModulePath year={year} moduleIndex={activeModuleIdx} />
+            <ModulePath year={year} moduleIndex={activeModuleIdx} started={started} />
           </div>
 
           {/* Assessment for this year */}
@@ -334,9 +352,9 @@ export default function Pillar5Course({ onBack }: { onBack: () => void }) {
         <button
           onClick={() => {
             if (activeModuleIdx > 0) setActiveModuleIdx(m => m - 1);
-            else if (yearIndex > 0) { setActiveYearId(PILLAR5_YEARS[yearIndex - 1].id); setActiveModuleIdx(4); }
+            else if (yearIndex > 0) { setActiveYearId(years[yearIndex - 1].id); setActiveModuleIdx(years[yearIndex - 1].modules.length - 1); }
           }}
-          disabled={activeYearId === "y6" && activeModuleIdx === 0}
+          disabled={yearIndex <= 0 && activeModuleIdx === 0}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-slate-200 disabled:opacity-30 transition-all hover:bg-slate-50"
         >
           <ChevronLeft size={15} /> Prev
@@ -351,10 +369,10 @@ export default function Pillar5Course({ onBack }: { onBack: () => void }) {
 
         <button
           onClick={() => {
-            if (activeModuleIdx < 4) setActiveModuleIdx(m => m + 1);
-            else if (yearIndex < 6) { setActiveYearId(PILLAR5_YEARS[yearIndex + 1].id); setActiveModuleIdx(0); }
+            if (activeModuleIdx < year.modules.length - 1) setActiveModuleIdx(m => m + 1);
+            else if (yearIndex < years.length - 1) { setActiveYearId(years[yearIndex + 1].id); setActiveModuleIdx(0); }
           }}
-          disabled={activeYearId === "y12" && activeModuleIdx === 3}
+          disabled={yearIndex >= years.length - 1 && activeModuleIdx === year.modules.length - 1}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-30 transition-all hover:opacity-90"
           style={{ background: year.color }}
         >
