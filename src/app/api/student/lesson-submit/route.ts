@@ -9,8 +9,9 @@ const sb = () =>
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-// Default to the most capable model; override with ANTHROPIC_MODEL (e.g. claude-haiku-4-5) to cut cost.
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-4-8";
+// Haiku is fast + cheap and plenty capable for grading short answers; override with
+// ANTHROPIC_MODEL (e.g. claude-opus-4-8) for stronger judgement.
+const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5";
 
 type Grade = { pass: boolean; score: number; feedback: string };
 
