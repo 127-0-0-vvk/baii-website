@@ -27,19 +27,20 @@ export async function GET(req: NextRequest) {
   const supabase = sb();
   const { data, error } = await supabase
     .from("lesson_responses")
-    .select("week_num, day_num, submitted_at, score, level, strength, tip")
+    .select("week_num, day_num, submitted_at, score, level, strength, tip, attempts")
     .eq("student_id", student_id)
     .eq("course_code", course_code);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const completed: Record<string, {
-    date: string; score: number | null; level: string | null; strength: string | null; tip: string | null;
+    date: string; score: number | null; level: string | null; strength: string | null; tip: string | null; attempts: number;
   }> = {};
   for (const r of data ?? []) {
     completed[`${r.week_num}-D${r.day_num}`] = {
       date: istDate(new Date(r.submitted_at)),
       score: r.score, level: r.level, strength: r.strength, tip: r.tip,
+      attempts: r.attempts ?? 1,
     };
   }
 

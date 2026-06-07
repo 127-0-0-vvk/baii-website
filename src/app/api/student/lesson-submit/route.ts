@@ -120,19 +120,38 @@ export async function POST(req: NextRequest) {
     ? { score: ai.score, level: ai.level, strength: ai.strength, tip: ai.tip }
     : { score: null as number | null, level: null as string | null, strength: null as string | null, tip: null as string | null };
 
-  // 4. Save.
   const supabase = sb();
+
+  // 4. Attempt cap (max 3). First submit = attempt 1; each redo +1.
+  const MAX_ATTEMPTS = 3;
+  const { data: existing } = await supabase
+    .from("lesson_responses")
+    .select("attempts")
+    .eq("student_id", student_id).eq("course_code", course_code)
+    .eq("year_id", year_id).eq("module_id", module_id)
+    .eq("week_num", week_num).eq("day_num", day_num)
+    .maybeSingle();
+
+  const prevAttempts = existing?.attempts ?? 0;
+  if (prevAttempts >= MAX_ATTEMPTS) {
+    return NextResponse.json({
+      accepted: false,
+      feedback: `You've used all ${MAX_ATTEMPTS} attempts for this day. Your last submission stands.`,
+      attempts: prevAttempts, maxAttempts: MAX_ATTEMPTS,
+    });
+  }
+  const attempts = prevAttempts + 1;
+
+  // 5. Save (latest attempt replaces the previous one).
   const { error } = await supabase
     .from("lesson_responses")
     .upsert({
       student_id, course_code, year_id, module_id, week_num, day_num,
       response: response.trim(),
-      score: grade.score,
-      level: grade.level,
-      strength: grade.strength,
-      tip: grade.tip,
+      score: grade.score, level: grade.level, strength: grade.strength, tip: grade.tip,
+      attempts, submitted_at: new Date().toISOString(),
     }, { onConflict: "student_id,course_code,year_id,module_id,week_num,day_num" });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ accepted: true, grade });
+  return NextResponse.json({ accepted: true, grade, attempts, maxAttempts: MAX_ATTEMPTS });
 }

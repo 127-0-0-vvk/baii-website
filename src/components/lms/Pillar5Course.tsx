@@ -11,8 +11,9 @@ import { Star } from "lucide-react";
 import { PILLAR5_YEARS, PILLAR5_ARC, type Year, type Week, type LessonDay } from "@/data/pillar5";
 
 // Per-day grade returned with progress.
-type DayGrade = { date: string; score: number | null; level: string | null; strength: string | null; tip: string | null };
+type DayGrade = { date: string; score: number | null; level: string | null; strength: string | null; tip: string | null; attempts: number };
 type Progress = { completed: Record<string, DayGrade>; today: string };
+const MAX_ATTEMPTS = 3;
 
 // Score → stars (0-3). Returns -1 when ungraded (no AI key configured).
 function scoreToStars(score: number | null | undefined): number {
@@ -71,6 +72,9 @@ function DayLessonView({
   const [watched, setWatched] = useState(false);
   const [response, setResponse] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [redoMode, setRedoMode] = useState(false);
+  // When the whole week is done we show a summary; focusDay lets the student reopen one day to redo.
+  const [focusDay, setFocusDay] = useState<number | null>(null);
   // accepted feedback carries the grade; rejected feedback carries only a message.
   const [feedback, setFeedback] = useState<
     | { accepted: true; score: number | null; level: string | null; strength: string | null; tip: string | null }
@@ -83,7 +87,7 @@ function DayLessonView({
   const wordCount = response.trim() ? response.trim().split(/\s+/).filter(Boolean).length : 0;
   const meetsMin = wordCount >= minWords;
 
-  useEffect(() => { setWatched(false); setResponse(""); setFeedback(null); }, [activeDay]);
+  useEffect(() => { setWatched(false); setResponse(""); setFeedback(null); setRedoMode(false); }, [activeDay]);
 
   const submit = async () => {
     if (!meetsMin || submitting || !currentDayData) return;
@@ -113,8 +117,10 @@ function DayLessonView({
         const grade: DayGrade = {
           date: progress.today,
           score: g.score ?? null, level: g.level ?? null, strength: g.strength ?? null, tip: g.tip ?? null,
+          attempts: data.attempts ?? ((progress.completed[dayKey(activeDay)]?.attempts ?? 0) + 1),
         };
         onDayComplete(dayKey(activeDay), grade);
+        setRedoMode(false);
         setFeedback({ accepted: true, score: grade.score, level: grade.level, strength: grade.strength, tip: grade.tip });
       } else {
         setFeedback({ accepted: false, message: data.feedback || "Please re-read the task and try again." });
@@ -157,7 +163,7 @@ function DayLessonView({
           const active = activeDay === dn;
           return (
             <button key={dn}
-              onClick={() => setActiveDay(dn)}
+              onClick={() => { setActiveDay(dn); setFocusDay(allDone ? dn : null); }}
               className="flex-1 flex flex-col items-center gap-1 py-2 rounded-xl transition-all"
               style={{
                 background: active ? year.color : done ? "#f0fdf4" : "white",
@@ -183,7 +189,7 @@ function DayLessonView({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto pb-6">
-        {allDone ? (
+        {allDone && focusDay === null ? (
           <div className="mx-4 mt-5">
             <div className="rounded-2xl p-6 text-center" style={{ background: `linear-gradient(135deg, ${year.color}, ${year.color}cc)` }}>
               <div className="text-4xl mb-3">🏆</div>
@@ -210,8 +216,10 @@ function DayLessonView({
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-5 mb-2 px-1">Your 5-day journey</p>
             {days.map((d, i) => {
               const g = progress.completed[dayKey(i + 1)];
+              const used = g?.attempts ?? 1;
               return (
-                <div key={d.day} className="bg-white rounded-xl border border-slate-100 px-4 py-3 mb-2 flex items-center gap-3">
+                <button key={d.day} onClick={() => { setActiveDay(i + 1); setFocusDay(i + 1); }}
+                  className="w-full text-left bg-white rounded-xl border border-slate-100 px-4 py-3 mb-2 flex items-center gap-3 hover:bg-slate-50 transition-colors">
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#f0fdf4" }}>
                     <CheckCircle2 size={14} style={{ color: "#16a34a" }} />
                   </div>
@@ -220,13 +228,21 @@ function DayLessonView({
                     {g?.tip ? <p className="text-[10px] text-slate-400 truncate">{g.tip}</p> : <p className="text-[10px] text-slate-400">Submitted</p>}
                   </div>
                   {scoreToStars(g?.score) >= 0 && <Stars score={g.score} size={12} />}
-                </div>
+                  <span className="text-[9px] text-slate-300 shrink-0">{used < MAX_ATTEMPTS ? "Redo →" : "Final"}</span>
+                </button>
               );
             })}
           </div>
         ) : currentDayData ? (
           <AnimatePresence mode="wait">
             <motion.div key={activeDay} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="px-4 pt-4 space-y-4">
+
+              {allDone && focusDay !== null && (
+                <button onClick={() => { setFocusDay(null); setRedoMode(false); }}
+                  className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: year.color }}>
+                  <ChevronLeft size={14} /> Back to week summary
+                </button>
+              )}
 
               {/* Day title */}
               <div className="rounded-2xl p-4" style={{ background: `linear-gradient(135deg, ${year.color}, ${year.color}cc)` }}>
@@ -274,31 +290,44 @@ function DayLessonView({
                     </div>
                   </div>
 
-                  {isDone(activeDay) ? (
-                    <div className="rounded-2xl p-4" style={{ background: "#f0fdf4", border: "1.5px solid #bbf7d0" }}>
-                      <div className="flex items-center gap-3">
-                        <CheckCircle2 size={20} style={{ color: "#16a34a" }} />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="font-bold text-sm" style={{ color: "#15803d" }}>Day {activeDay} submitted!</p>
-                            <Stars score={progress.completed[dayKey(activeDay)]?.score} size={14} />
+                  {isDone(activeDay) && !redoMode ? (
+                    (() => {
+                      const g = progress.completed[dayKey(activeDay)];
+                      const used = g?.attempts ?? 1;
+                      const canRedo = used < MAX_ATTEMPTS;
+                      return (
+                        <div className="rounded-2xl p-4" style={{ background: "#f0fdf4", border: "1.5px solid #bbf7d0" }}>
+                          <div className="flex items-center gap-3">
+                            <CheckCircle2 size={20} style={{ color: "#16a34a" }} />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="font-bold text-sm" style={{ color: "#15803d" }}>Day {activeDay} submitted!</p>
+                                <Stars score={g?.score} size={14} />
+                              </div>
+                              <p className="text-xs" style={{ color: "#16a34a" }}>
+                                {activeDay < totalDays ? `${nextLabel} unlocks tomorrow` : "Week 1 complete 🎉"}
+                              </p>
+                            </div>
                           </div>
-                          <p className="text-xs" style={{ color: "#16a34a" }}>
-                            {activeDay < totalDays ? `${nextLabel} unlocks tomorrow` : "Week 1 complete 🎉"}
-                          </p>
+                          {g?.strength && <p className="text-xs mt-3 leading-relaxed" style={{ color: "#166534" }}>👏 {g.strength}</p>}
+                          {g?.tip && <p className="text-xs mt-1.5 leading-relaxed" style={{ color: "#3f6212" }}>💡 {g.tip}</p>}
+
+                          {/* Redo — max 3 attempts */}
+                          <div className="mt-3 pt-3 border-t" style={{ borderColor: "#bbf7d0" }}>
+                            {canRedo ? (
+                              <button
+                                onClick={() => { setRedoMode(true); setWatched(false); setResponse(""); setFeedback(null); }}
+                                className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all hover:opacity-80"
+                                style={{ background: "white", border: `1.5px solid ${year.color}`, color: year.color }}>
+                                <ArrowRight size={14} /> Redo this day to improve · {MAX_ATTEMPTS - used} {MAX_ATTEMPTS - used === 1 ? "try" : "tries"} left
+                              </button>
+                            ) : (
+                              <p className="text-[11px] text-center text-slate-400">All {MAX_ATTEMPTS} attempts used — your best work stands 💪</p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      {progress.completed[dayKey(activeDay)]?.strength && (
-                        <p className="text-xs mt-3 leading-relaxed" style={{ color: "#166534" }}>
-                          👏 {progress.completed[dayKey(activeDay)].strength}
-                        </p>
-                      )}
-                      {progress.completed[dayKey(activeDay)]?.tip && (
-                        <p className="text-xs mt-1.5 leading-relaxed" style={{ color: "#3f6212" }}>
-                          💡 {progress.completed[dayKey(activeDay)].tip}
-                        </p>
-                      )}
-                    </div>
+                      );
+                    })()
                   ) : !watched ? (
                     <div className="space-y-3">
                       <div className="rounded-2xl p-4" style={{ background: `${year.color}08`, border: `1px solid ${year.color}20` }}>
@@ -316,6 +345,15 @@ function DayLessonView({
                     </div>
                   ) : (
                     <div className="space-y-3">
+                      {redoMode && (
+                        <div className="rounded-xl px-3.5 py-2.5 flex items-center justify-between" style={{ background: `${year.color}10`, border: `1px solid ${year.color}30` }}>
+                          <p className="text-xs font-semibold" style={{ color: year.color }}>
+                            ✏️ Redo — attempt {(progress.completed[dayKey(activeDay)]?.attempts ?? 1) + 1} of {MAX_ATTEMPTS}
+                          </p>
+                          <button onClick={() => { setRedoMode(false); setWatched(false); setResponse(""); setFeedback(null); }}
+                            className="text-[11px] font-semibold text-slate-400 hover:text-slate-600">Cancel</button>
+                        </div>
+                      )}
                       <div className="rounded-2xl p-4" style={{ background: "rgba(26,58,107,0.04)", border: "1px solid rgba(26,58,107,0.1)" }}>
                         <div className="flex items-center gap-2 mb-2">
                           <Dumbbell size={13} className="text-slate-500" />

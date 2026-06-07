@@ -130,7 +130,7 @@ function AssignModal({ userId, userName, onClose, onDone }: { userId: string; us
 }
 
 /* ─── STUDENT DETAIL PANEL ────────────────────────────────── */
-type LessonResponse = { course_code: string; week_num: string; day_num: number; response: string; submitted_at: string; score: number | null; level: string | null; strength: string | null; tip: string | null };
+type LessonResponse = { course_code: string; week_num: string; day_num: number; response: string; submitted_at: string; score: number | null; level: string | null; strength: string | null; tip: string | null; attempts: number | null };
 const DAY_LABELS = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 function StudentPanel({ student, onClose, onRefresh }: { student: Profile; onClose: () => void; onRefresh: () => void }) {
@@ -276,7 +276,7 @@ function StudentPanel({ student, onClose, onRefresh }: { student: Profile; onClo
                           <div className="px-4 pb-3 space-y-2">
                             {(r.level || r.strength || r.tip) && (
                               <div className="rounded-xl p-3 text-xs space-y-1" style={{ background: "rgba(26,58,107,0.04)", border: "1px solid rgba(26,58,107,0.1)" }}>
-                                {r.level && <p className="font-semibold text-slate-600">AI grade: {r.score}/100 · {r.level}</p>}
+                                {r.level && <p className="font-semibold text-slate-600">AI grade: {r.score}/100 · {r.level}{r.attempts && r.attempts > 1 ? ` · attempt ${r.attempts}/3` : ""}</p>}
                                 {r.strength && <p className="text-slate-500">👏 {r.strength}</p>}
                                 {r.tip && <p className="text-slate-500">💡 {r.tip}</p>}
                               </div>

@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const supabase = sb();
   const { data, error } = await supabase
     .from("lesson_responses")
-    .select("course_code, year_id, module_id, week_num, day_num, response, submitted_at, score, level, strength, tip")
+    .select("course_code, year_id, module_id, week_num, day_num, response, submitted_at, score, level, strength, tip, attempts")
     .eq("student_id", student_id)
     .order("course_code")
     .order("week_num")
