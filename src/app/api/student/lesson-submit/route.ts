@@ -13,31 +13,37 @@ const sb = () =>
 // ANTHROPIC_MODEL (e.g. claude-opus-4-8) for stronger judgement.
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5";
 
-type Grade = { pass: boolean; score: number; feedback: string };
+type Grade = {
+  genuine: boolean;   // false only if empty / gibberish / off-topic / copied the prompt
+  score: number;      // 0-100 overall
+  level: string;      // Developing | Proficient | Excellent
+  strength: string;   // one specific thing done well
+  tip: string;        // one concrete improvement
+};
 
-// AI grader — replaces the teacher. Returns null if no API key is configured (caller falls back to rule-based).
+// AI grader — replaces the teacher. Returns null if no API key (caller falls back to a plain accept).
 async function gradeWithClaude(opts: {
-  prompt: string;
-  criteria: string;
-  response: string;
-  dayTitle: string;
+  prompt: string; criteria: string; response: string; dayTitle: string;
 }): Promise<Grade | null> {
   if (!process.env.ANTHROPIC_API_KEY) return null;
-
   const client = new Anthropic();
 
   const system =
-    "You are a warm, encouraging tutor for BAII, grading a Class 6 student's lesson submission " +
-    "in the 'Critical Thinking' course. Judge whether the student genuinely attempted the task and met its intent. " +
-    "Be generous and kind — the goal is to keep a young student motivated, not to catch them out. " +
-    "Only mark pass=false if the answer is empty, off-topic, low-effort (e.g. 'asdf', one word), or clearly ignores the task. " +
-    "Keep feedback to 1-3 short sentences, addressed directly to the student ('you'), and always include one specific encouraging observation.";
+    "You are a warm, encouraging tutor for BAII grading a Class 6 (≈11-year-old) student's submission " +
+    "in a 'Critical Thinking' course. Grade THREE dimensions, then give an overall score 0-100:\n" +
+    "1. Completion — did they do all parts of the task (e.g. list the requested number of items, answer every question)?\n" +
+    "2. Skill quality — did they demonstrate the specific skill the task targets (per the grading guidance)?\n" +
+    "3. Effort & specificity — concrete, detailed answers vs vague or one-word answers.\n\n" +
+    "Be generous and kind — the goal is to keep a young student motivated. A genuine, complete attempt should " +
+    "score 70+. Reserve 85+ for genuinely strong work. Set genuine=false ONLY if the answer is empty, gibberish " +
+    "(e.g. 'asdf'), off-topic, or just copies the question back. level: 0-49='Developing', 50-84='Proficient', 85-100='Excellent'. " +
+    "strength = one specific thing they did well (quote a detail from their answer when possible). " +
+    "tip = one concrete, friendly suggestion to improve. Address the student directly as 'you'. Keep strength and tip to one short sentence each.";
 
   const user =
     `TASK GIVEN TO STUDENT:\n${opts.prompt}\n\n` +
-    `WHAT A GOOD ANSWER LOOKS LIKE (grading guidance):\n${opts.criteria}\n\n` +
-    `STUDENT'S SUBMISSION (lesson: ${opts.dayTitle}):\n${opts.response}\n\n` +
-    `Grade it. score is 0-100. pass=true unless it's empty/off-topic/low-effort.`;
+    `GRADING GUIDANCE (what a good answer looks like):\n${opts.criteria}\n\n` +
+    `STUDENT'S SUBMISSION (lesson: ${opts.dayTitle}):\n${opts.response}\n\nGrade it.`;
 
   try {
     const msg = await client.messages.create({
@@ -53,27 +59,27 @@ async function gradeWithClaude(opts: {
             type: "object",
             additionalProperties: false,
             properties: {
-              pass: { type: "boolean" },
+              genuine: { type: "boolean" },
               score: { type: "integer" },
-              feedback: { type: "string" },
+              level: { type: "string", enum: ["Developing", "Proficient", "Excellent"] },
+              strength: { type: "string" },
+              tip: { type: "string" },
             },
-            required: ["pass", "score", "feedback"],
+            required: ["genuine", "score", "level", "strength", "tip"],
           },
         },
       },
     });
     const text = msg.content.find((b) => b.type === "text");
     if (!text || text.type !== "text") return null;
-    const parsed = JSON.parse(text.text) as Grade;
-    return parsed;
+    return JSON.parse(text.text) as Grade;
   } catch (e) {
     console.error("Claude grading failed:", e);
-    return null; // fall back to rule-based
+    return null;
   }
 }
 
 // POST /api/student/lesson-submit
-// Body: { student_id, course_code, year_id, module_id, week_num, day_num, response, prompt, criteria, min_words, day_title }
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const {
@@ -88,49 +94,43 @@ export async function POST(req: NextRequest) {
   const wordCount = response.trim().split(/\s+/).filter(Boolean).length;
   const minWords = typeof min_words === "number" ? min_words : 30;
 
-  // 1. Rule-based gate (always runs, free). Too short → reject before spending any tokens.
+  // 1. Rule-based gate (free) — too short → bounce before spending tokens.
   if (wordCount < minWords) {
     return NextResponse.json({
       accepted: false,
-      grade: {
-        pass: false,
-        score: 0,
-        feedback: `Your answer is a bit short (${wordCount} words). This task needs at least ${minWords} words — add more detail and try again.`,
-      },
+      feedback: `Your answer is a bit short (${wordCount} words). This task needs at least ${minWords} words — add more detail and try again.`,
     });
   }
 
-  // 2. AI grade (Claude). Null when no API key → rule-based pass.
-  const aiGrade = await gradeWithClaude({
-    prompt: prompt ?? "",
-    criteria: criteria ?? "",
-    response,
-    dayTitle: day_title ?? `Day ${day_num}`,
+  // 2. AI grade.
+  const ai = await gradeWithClaude({
+    prompt: prompt ?? "", criteria: criteria ?? "", response, dayTitle: day_title ?? `Day ${day_num}`,
   });
 
-  const grade: Grade = aiGrade ?? {
-    pass: true,
-    score: 100,
-    feedback: "Nice work — submission received! 🎉",
-  };
-
-  // If the AI says it needs work, don't save — let the student revise and resubmit.
-  if (!grade.pass) {
-    return NextResponse.json({ accepted: false, grade });
+  // Not a genuine attempt → bounce (don't save), but never block on mere low quality.
+  if (ai && !ai.genuine) {
+    return NextResponse.json({
+      accepted: false,
+      feedback: ai.tip || "This doesn't look like a real attempt yet. Re-read the task and give it a proper try!",
+    });
   }
 
-  // 3. Save the accepted submission.
+  // 3. Build the saved grade (null score when no AI key configured).
+  const grade = ai
+    ? { score: ai.score, level: ai.level, strength: ai.strength, tip: ai.tip }
+    : { score: null as number | null, level: null as string | null, strength: null as string | null, tip: null as string | null };
+
+  // 4. Save.
   const supabase = sb();
   const { error } = await supabase
     .from("lesson_responses")
     .upsert({
-      student_id,
-      course_code,
-      year_id,
-      module_id,
-      week_num,
-      day_num,
+      student_id, course_code, year_id, module_id, week_num, day_num,
       response: response.trim(),
+      score: grade.score,
+      level: grade.level,
+      strength: grade.strength,
+      tip: grade.tip,
     }, { onConflict: "student_id,course_code,year_id,module_id,week_num,day_num" });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

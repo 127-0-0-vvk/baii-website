@@ -7,17 +7,41 @@ import {
   Trophy, Target, X, ArrowRight, Lightbulb,
   Dumbbell, MapPin, Play, Send, Calendar, AlertCircle, Sparkles,
 } from "lucide-react";
+import { Star } from "lucide-react";
 import { PILLAR5_YEARS, PILLAR5_ARC, type Year, type Week, type LessonDay } from "@/data/pillar5";
 
-// Progress = which day-keys are done and on what IST date, plus the server's "today".
-type Progress = { completed: Record<string, string>; today: string };
+// Per-day grade returned with progress.
+type DayGrade = { date: string; score: number | null; level: string | null; strength: string | null; tip: string | null };
+type Progress = { completed: Record<string, DayGrade>; today: string };
+
+// Score → stars (0-3). Returns -1 when ungraded (no AI key configured).
+function scoreToStars(score: number | null | undefined): number {
+  if (score == null) return -1;
+  if (score >= 85) return 3;
+  if (score >= 70) return 2;
+  if (score >= 50) return 1;
+  return 0;
+}
+
+function Stars({ score, size = 16 }: { score: number | null | undefined; size?: number }) {
+  const n = scoreToStars(score);
+  if (n < 0) return null; // ungraded — show nothing
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      {[0, 1, 2].map((i) => (
+        <Star key={i} size={size} strokeWidth={2}
+          style={{ color: "#f59e0b", fill: i < n ? "#f59e0b" : "transparent" }} />
+      ))}
+    </span>
+  );
+}
 
 /* ─── Day Lesson View ────────────────────────────────────────── */
 function DayLessonView({
   week, year, studentId, courseCode, progress, onDayComplete, onClose,
 }: {
   week: Week; year: Year; studentId?: string; courseCode?: string;
-  progress: Progress; onDayComplete: (key: string, date: string) => void; onClose: () => void;
+  progress: Progress; onDayComplete: (key: string, grade: DayGrade) => void; onClose: () => void;
 }) {
   const days = week.days ?? [];
   const dayKey = (d: number) => `${week.w}-D${d}`;
@@ -26,11 +50,11 @@ function DayLessonView({
   const dayUnlocked = (d: number) => {
     if (d === 1) return true;
     if (!isDone(d - 1)) return false;
-    return progress.completed[dayKey(d - 1)] < progress.today;
+    return progress.completed[dayKey(d - 1)].date < progress.today;
   };
   // Locked purely because the previous day was finished today (comes back tomorrow).
   const waitingForTomorrow = (d: number) =>
-    d > 1 && isDone(d - 1) && !isDone(d) && progress.completed[dayKey(d - 1)] === progress.today;
+    d > 1 && isDone(d - 1) && !isDone(d) && progress.completed[dayKey(d - 1)].date === progress.today;
 
   const allDone = days.every((_, i) => isDone(i + 1));
 
@@ -47,7 +71,12 @@ function DayLessonView({
   const [watched, setWatched] = useState(false);
   const [response, setResponse] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [feedback, setFeedback] = useState<{ pass: boolean; feedback: string } | null>(null);
+  // accepted feedback carries the grade; rejected feedback carries only a message.
+  const [feedback, setFeedback] = useState<
+    | { accepted: true; score: number | null; level: string | null; strength: string | null; tip: string | null }
+    | { accepted: false; message: string }
+    | null
+  >(null);
 
   const currentDayData: LessonDay | undefined = days[activeDay - 1];
   const minWords = currentDayData?.min_words ?? 30;
@@ -79,13 +108,19 @@ function DayLessonView({
         }),
       });
       const data = await res.json();
-      const grade = data.grade ?? { pass: !!data.accepted, feedback: "Submitted!" };
-      setFeedback({ pass: !!data.accepted, feedback: grade.feedback });
       if (data.accepted) {
-        onDayComplete(dayKey(activeDay), progress.today);
+        const g = data.grade ?? {};
+        const grade: DayGrade = {
+          date: progress.today,
+          score: g.score ?? null, level: g.level ?? null, strength: g.strength ?? null, tip: g.tip ?? null,
+        };
+        onDayComplete(dayKey(activeDay), grade);
+        setFeedback({ accepted: true, score: grade.score, level: grade.level, strength: grade.strength, tip: grade.tip });
+      } else {
+        setFeedback({ accepted: false, message: data.feedback || "Please re-read the task and try again." });
       }
     } catch {
-      setFeedback({ pass: false, feedback: "Something went wrong submitting. Please try again." });
+      setFeedback({ accepted: false, message: "Something went wrong submitting. Please try again." });
     } finally {
       setSubmitting(false);
     }
@@ -138,6 +173,9 @@ function DayLessonView({
                 : unlocked
                   ? <span className="text-sm font-black" style={{ color: active ? "white" : year.color }}>{dn}</span>
                   : <Lock size={12} style={{ color: "#cbd5e1" }} />}
+              {done && scoreToStars(progress.completed[dayKey(dn)]?.score) >= 0 && (
+                <Stars score={progress.completed[dayKey(dn)].score} size={9} />
+              )}
             </button>
           );
         })}
@@ -151,6 +189,17 @@ function DayLessonView({
               <div className="text-4xl mb-3">🏆</div>
               <p className="text-white font-black text-xl mb-1" style={{ fontFamily: "var(--font-playfair)" }}>Week 1 Complete!</p>
               <p className="text-white/80 text-sm">You finished all 5 days of &quot;Look vs See&quot;</p>
+              {(() => {
+                const scored = days.map((_, i) => progress.completed[dayKey(i + 1)]?.score).filter((s): s is number => s != null);
+                if (!scored.length) return null;
+                const avg = Math.round(scored.reduce((a, b) => a + b, 0) / scored.length);
+                return (
+                  <div className="mt-3 inline-flex items-center gap-2 rounded-full px-4 py-1.5" style={{ background: "rgba(255,255,255,0.95)" }}>
+                    <Stars score={avg} size={18} />
+                    <span className="text-sm font-black" style={{ color: year.color }}>Week average</span>
+                  </div>
+                );
+              })()}
               <div className="mt-4 rounded-xl p-3" style={{ background: "rgba(255,255,255,0.15)" }}>
                 <p className="text-white/90 text-xs leading-relaxed">
                   The skill you built this week — seeing what&apos;s actually there vs. what your brain fills in —
@@ -159,14 +208,21 @@ function DayLessonView({
               </div>
             </div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-5 mb-2 px-1">Your 5-day journey</p>
-            {days.map((d) => (
-              <div key={d.day} className="bg-white rounded-xl border border-slate-100 px-4 py-3 mb-2 flex items-center gap-3">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#f0fdf4" }}>
-                  <CheckCircle2 size={14} style={{ color: "#16a34a" }} />
+            {days.map((d, i) => {
+              const g = progress.completed[dayKey(i + 1)];
+              return (
+                <div key={d.day} className="bg-white rounded-xl border border-slate-100 px-4 py-3 mb-2 flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#f0fdf4" }}>
+                    <CheckCircle2 size={14} style={{ color: "#16a34a" }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-slate-700">{d.label} — {d.title}</p>
+                    {g?.tip ? <p className="text-[10px] text-slate-400 truncate">{g.tip}</p> : <p className="text-[10px] text-slate-400">Submitted</p>}
+                  </div>
+                  {scoreToStars(g?.score) >= 0 && <Stars score={g.score} size={12} />}
                 </div>
-                <div><p className="text-xs font-bold text-slate-700">{d.label} — {d.title}</p><p className="text-[10px] text-slate-400">Submitted</p></div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : currentDayData ? (
           <AnimatePresence mode="wait">
@@ -219,14 +275,29 @@ function DayLessonView({
                   </div>
 
                   {isDone(activeDay) ? (
-                    <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: "#f0fdf4", border: "1.5px solid #bbf7d0" }}>
-                      <CheckCircle2 size={20} style={{ color: "#16a34a" }} />
-                      <div>
-                        <p className="font-bold text-sm" style={{ color: "#15803d" }}>Day {activeDay} submitted!</p>
-                        <p className="text-xs" style={{ color: "#16a34a" }}>
-                          {activeDay < totalDays ? `${nextLabel} unlocks tomorrow` : "Week 1 complete 🎉"}
-                        </p>
+                    <div className="rounded-2xl p-4" style={{ background: "#f0fdf4", border: "1.5px solid #bbf7d0" }}>
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 size={20} style={{ color: "#16a34a" }} />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-sm" style={{ color: "#15803d" }}>Day {activeDay} submitted!</p>
+                            <Stars score={progress.completed[dayKey(activeDay)]?.score} size={14} />
+                          </div>
+                          <p className="text-xs" style={{ color: "#16a34a" }}>
+                            {activeDay < totalDays ? `${nextLabel} unlocks tomorrow` : "Week 1 complete 🎉"}
+                          </p>
+                        </div>
                       </div>
+                      {progress.completed[dayKey(activeDay)]?.strength && (
+                        <p className="text-xs mt-3 leading-relaxed" style={{ color: "#166534" }}>
+                          👏 {progress.completed[dayKey(activeDay)].strength}
+                        </p>
+                      )}
+                      {progress.completed[dayKey(activeDay)]?.tip && (
+                        <p className="text-xs mt-1.5 leading-relaxed" style={{ color: "#3f6212" }}>
+                          💡 {progress.completed[dayKey(activeDay)].tip}
+                        </p>
+                      )}
                     </div>
                   ) : !watched ? (
                     <div className="space-y-3">
@@ -255,7 +326,7 @@ function DayLessonView({
 
                       <textarea
                         value={response}
-                        onChange={(e) => { setResponse(e.target.value); if (feedback && !feedback.pass) setFeedback(null); }}
+                        onChange={(e) => { setResponse(e.target.value); if (feedback && !feedback.accepted) setFeedback(null); }}
                         placeholder="Write your response here…"
                         rows={9}
                         className="w-full rounded-2xl px-4 py-3.5 text-sm border bg-white text-slate-700 placeholder:text-slate-300 focus:outline-none transition-colors resize-none leading-relaxed"
@@ -270,12 +341,12 @@ function DayLessonView({
                       </div>
 
                       {/* AI feedback (needs work) */}
-                      {feedback && !feedback.pass && (
+                      {feedback && !feedback.accepted && (
                         <div className="rounded-2xl p-3.5 flex gap-2.5" style={{ background: "#fffbeb", border: "1px solid #fde68a" }}>
                           <AlertCircle size={16} className="shrink-0 mt-0.5" style={{ color: "#d97706" }} />
                           <div>
                             <p className="text-[11px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#b45309" }}>Tutor feedback</p>
-                            <p className="text-sm leading-relaxed" style={{ color: "#92400e" }}>{feedback.feedback}</p>
+                            <p className="text-sm leading-relaxed" style={{ color: "#92400e" }}>{feedback.message}</p>
                           </div>
                         </div>
                       )}
@@ -301,7 +372,7 @@ function DayLessonView({
 
       {/* Accepted feedback toast */}
       <AnimatePresence>
-        {feedback && feedback.pass && (
+        {feedback && feedback.accepted && (
           <motion.div
             initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
             className="fixed bottom-4 left-4 right-4 z-50 max-w-lg mx-auto rounded-2xl p-4 shadow-2xl flex gap-3"
@@ -309,9 +380,15 @@ function DayLessonView({
             <div className="w-9 h-9 rounded-full shrink-0 flex items-center justify-center" style={{ background: "#f0fdf4" }}>
               <Sparkles size={18} style={{ color: "#16a34a" }} />
             </div>
-            <div className="flex-1">
-              <p className="text-[11px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#15803d" }}>Accepted!</p>
-              <p className="text-sm text-slate-700 leading-relaxed">{feedback.feedback}</p>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "#15803d" }}>Accepted!</p>
+                <Stars score={feedback.score} size={14} />
+              </div>
+              {feedback.strength
+                ? <p className="text-sm text-slate-700 leading-relaxed">👏 {feedback.strength}</p>
+                : <p className="text-sm text-slate-700 leading-relaxed">Nice work — submission received! 🎉</p>}
+              {feedback.tip && <p className="text-xs text-slate-500 leading-relaxed mt-1">💡 {feedback.tip}</p>}
             </div>
             <button onClick={() => setFeedback(null)} className="shrink-0 text-slate-300 hover:text-slate-500"><X size={16} /></button>
           </motion.div>
@@ -468,8 +545,8 @@ export default function Pillar5Course({
       .catch(() => {});
   }, [studentId, courseCode]);
 
-  const handleDayComplete = (key: string, date: string) => {
-    setProgress((p) => ({ ...p, completed: { ...p.completed, [key]: date } }));
+  const handleDayComplete = (key: string, grade: DayGrade) => {
+    setProgress((p) => ({ ...p, completed: { ...p.completed, [key]: grade } }));
   };
 
   if (selectedLesson) {

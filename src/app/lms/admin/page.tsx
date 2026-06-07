@@ -130,7 +130,7 @@ function AssignModal({ userId, userName, onClose, onDone }: { userId: string; us
 }
 
 /* ─── STUDENT DETAIL PANEL ────────────────────────────────── */
-type LessonResponse = { course_code: string; week_num: string; day_num: number; response: string; submitted_at: string };
+type LessonResponse = { course_code: string; week_num: string; day_num: number; response: string; submitted_at: string; score: number | null; level: string | null; strength: string | null; tip: string | null };
 const DAY_LABELS = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 function StudentPanel({ student, onClose, onRefresh }: { student: Profile; onClose: () => void; onRefresh: () => void }) {
@@ -263,11 +263,24 @@ function StudentPanel({ student, onClose, onRefresh }: { student: Profile; onClo
                             <p className="text-xs font-semibold text-slate-700">{r.week_num} · Day {r.day_num} — {DAY_LABELS[r.day_num]}</p>
                             <p className="text-[10px] text-slate-400">{r.course_code} · {new Date(r.submitted_at).toLocaleDateString("en-IN")}</p>
                           </div>
+                          {r.score != null && (
+                            <span className="text-[10px] font-black px-2 py-1 rounded-full shrink-0"
+                              style={{ background: r.score >= 70 ? "#f0fdf4" : r.score >= 50 ? "#fffbeb" : "#fef2f2", color: r.score >= 70 ? "#16a34a" : r.score >= 50 ? "#c47d2a" : "#dc2626" }}>
+                              {r.score}
+                            </span>
+                          )}
                           <ChevronDown size={14} className="text-slate-300 transition-transform shrink-0"
                             style={{ transform: isOpen ? "rotate(180deg)" : "none" }} />
                         </button>
                         {isOpen && (
-                          <div className="px-4 pb-3">
+                          <div className="px-4 pb-3 space-y-2">
+                            {(r.level || r.strength || r.tip) && (
+                              <div className="rounded-xl p-3 text-xs space-y-1" style={{ background: "rgba(26,58,107,0.04)", border: "1px solid rgba(26,58,107,0.1)" }}>
+                                {r.level && <p className="font-semibold text-slate-600">AI grade: {r.score}/100 · {r.level}</p>}
+                                {r.strength && <p className="text-slate-500">👏 {r.strength}</p>}
+                                {r.tip && <p className="text-slate-500">💡 {r.tip}</p>}
+                              </div>
+                            )}
                             <div className="rounded-xl p-3 text-xs text-slate-700 leading-relaxed whitespace-pre-wrap"
                               style={{ background: "#f8fafc", border: "1px solid #e2e8f0" }}>
                               {r.response}
