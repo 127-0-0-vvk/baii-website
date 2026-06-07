@@ -14,7 +14,6 @@ const sb = () =>
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5";
 
 type Grade = {
-  genuine: boolean;   // false only if empty / gibberish / off-topic / copied the prompt
   score: number;      // 0-100 overall
   level: string;      // Developing | Proficient | Excellent
   strength: string;   // one specific thing done well
@@ -35,8 +34,8 @@ async function gradeWithClaude(opts: {
     "2. Skill quality — did they demonstrate the specific skill the task targets (per the grading guidance)?\n" +
     "3. Effort & specificity — concrete, detailed answers vs vague or one-word answers.\n\n" +
     "Be generous and kind — the goal is to keep a young student motivated. A genuine, complete attempt should " +
-    "score 70+. Reserve 85+ for genuinely strong work. Set genuine=false ONLY if the answer is empty, gibberish " +
-    "(e.g. 'asdf'), off-topic, or just copies the question back. level: 0-49='Developing', 50-84='Proficient', 85-100='Excellent'. " +
+    "score 70+. Reserve 85+ for genuinely strong work. A weak/partial but real attempt should still score in the " +
+    "30-65 range with a clear tip — never 0 for a real try. level: 0-49='Developing', 50-84='Proficient', 85-100='Excellent'. " +
     "strength = one specific thing they did well (quote a detail from their answer when possible). " +
     "tip = one concrete, friendly suggestion to improve. Address the student directly as 'you'. Keep strength and tip to one short sentence each.";
 
@@ -59,13 +58,12 @@ async function gradeWithClaude(opts: {
             type: "object",
             additionalProperties: false,
             properties: {
-              genuine: { type: "boolean" },
               score: { type: "integer" },
               level: { type: "string", enum: ["Developing", "Proficient", "Excellent"] },
               strength: { type: "string" },
               tip: { type: "string" },
             },
-            required: ["genuine", "score", "level", "strength", "tip"],
+            required: ["score", "level", "strength", "tip"],
           },
         },
       },
@@ -102,18 +100,11 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // 2. AI grade.
+  // 2. AI grade. We never block on quality (your choice) — a real attempt is always accepted
+  //    and graded; the word-count gate above is the only bounce. Redo lets them improve.
   const ai = await gradeWithClaude({
     prompt: prompt ?? "", criteria: criteria ?? "", response, dayTitle: day_title ?? `Day ${day_num}`,
   });
-
-  // Not a genuine attempt → bounce (don't save), but never block on mere low quality.
-  if (ai && !ai.genuine) {
-    return NextResponse.json({
-      accepted: false,
-      feedback: ai.tip || "This doesn't look like a real attempt yet. Re-read the task and give it a proper try!",
-    });
-  }
 
   // 3. Build the saved grade (null score when no AI key configured).
   const grade = ai
