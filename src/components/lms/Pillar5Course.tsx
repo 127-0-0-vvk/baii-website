@@ -270,25 +270,34 @@ function DayLessonView({
                 </div>
               ) : (
                 <>
-                  {/* Video */}
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Watch first</p>
-                    <div className="rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: "16/9" }}>
-                      <iframe
-                        src={currentDayData.video_url + "?rel=0&modestbranding=1"}
-                        title={currentDayData.title}
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen className="w-full h-full" style={{ border: "none" }}
-                      />
+                  {/* Video — visible only before the answer form opens (locked while writing, to stop mid-task re-watching) */}
+                  {!watched ? (
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Watch first</p>
+                      <div className="rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: "16/9" }}>
+                        <iframe
+                          src={currentDayData.video_url + "?rel=0&modestbranding=1"}
+                          title={currentDayData.title}
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen className="w-full h-full" style={{ border: "none" }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between mt-1.5 px-0.5">
+                        <p className="text-[10px] text-slate-400">{currentDayData.video_note}</p>
+                        <a href={currentDayData.video_url.replace("/embed/", "/watch?v=")} target="_blank" rel="noopener noreferrer"
+                          className="text-[10px] font-semibold whitespace-nowrap ml-2" style={{ color: year.color }}>
+                          Open in YouTube ↗
+                        </a>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between mt-1.5 px-0.5">
-                      <p className="text-[10px] text-slate-400">{currentDayData.video_note}</p>
-                      <a href={currentDayData.video_url.replace("/embed/", "/watch?v=")} target="_blank" rel="noopener noreferrer"
-                        className="text-[10px] font-semibold whitespace-nowrap ml-2" style={{ color: year.color }}>
-                        Open in YouTube ↗
-                      </a>
+                  ) : !(isDone(activeDay) && !redoMode) ? (
+                    // Form is open → lock the video so the student answers from memory.
+                    <div className="rounded-2xl flex flex-col items-center justify-center gap-1.5 py-6" style={{ background: "#0f172a" }}>
+                      <Lock size={20} style={{ color: "rgba(255,255,255,0.6)" }} />
+                      <p className="text-xs font-semibold text-white/70">Video locked while you answer</p>
+                      <p className="text-[10px] text-white/40">Write from what you remember — no peeking!</p>
                     </div>
-                  </div>
+                  ) : null}
 
                   {isDone(activeDay) && !redoMode ? (
                     (() => {
