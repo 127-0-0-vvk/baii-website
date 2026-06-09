@@ -10,7 +10,7 @@ import {
   Library, UserCircle, LogOut, Bell, ChevronRight,
   GraduationCap, Clock, Award, Zap, Cpu,
   BookMarked, CalendarDays, FileText, Settings,
-  Mail, Phone, MapPin, School, Shield,
+  Mail, Phone, MapPin, School, Shield, Flame,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { createClient } from "@/lib/supabase/client";
@@ -88,47 +88,147 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label:
 }
 
 /* ─── DASHBOARD tab ───────────────────────────────────────── */
-function DashboardTab({ profile }: { profile: Profile }) {
+type DashboardData = {
+  coursesCount: number;
+  courses: { code: string; title: string; track: string; lessonsDone: number; weeksDone: number; weeksWithContent: number }[];
+  lessonsCompleted: number;
+  hours: number;
+  certificates: number;
+  streak: { current: number; best: number };
+  weeksCompleted: number;
+  avgScore: number | null;
+  upcoming: { label: string; sub: string }[];
+  badges: { id: string; emoji: string; label: string; earned: boolean; hint: string }[];
+};
+
+function DashboardTab({ profile, onGoToCourses }: { profile: Profile; onGoToCourses: () => void }) {
   const first = profile.full_name?.split(" ")[0] ?? "Student";
+  const [d, setD] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/student/dashboard?student_id=${profile.id}`)
+      .then(r => r.json()).then(setD).catch(() => {}).finally(() => setLoading(false));
+  }, [profile.id]);
+
   return (
     <div className="space-y-6">
       {/* Welcome banner */}
       <div className="rounded-2xl p-5 relative overflow-hidden" style={{ background: "linear-gradient(135deg, #1a3a6b 0%, #235098 100%)" }}>
         <div className="absolute right-0 top-0 w-32 h-32 rounded-full blur-2xl pointer-events-none" style={{ background: "rgba(196,125,42,0.25)", transform: "translate(30%,-30%)" }} />
-        <p className="text-white/60 text-xs mb-1">Welcome back 👋</p>
-        <h2 className="text-white font-black text-xl mb-1" style={{ fontFamily: "var(--font-playfair)" }}>Hi, {first}!</h2>
-        <p className="text-white/60 text-xs">Ready to build India&apos;s future?</p>
-        {profile.school && (
-          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1" style={{ background: "rgba(255,255,255,0.12)" }}>
-            <School size={11} className="text-white/70" />
-            <span className="text-white/80 text-[11px]">{profile.school}</span>
+        <div className="flex items-start justify-between relative">
+          <div>
+            <p className="text-white/60 text-xs mb-1">Welcome back 👋</p>
+            <h2 className="text-white font-black text-xl mb-1" style={{ fontFamily: "var(--font-playfair)" }}>Hi, {first}!</h2>
+            <p className="text-white/60 text-xs">Ready to build India&apos;s future?</p>
+            {profile.school && (
+              <div className="mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1" style={{ background: "rgba(255,255,255,0.12)" }}>
+                <School size={11} className="text-white/70" />
+                <span className="text-white/80 text-[11px]">{profile.school}</span>
+              </div>
+            )}
           </div>
-        )}
+          {/* Streak */}
+          {d && d.streak.current > 0 && (
+            <div className="flex flex-col items-center rounded-2xl px-3 py-2" style={{ background: "rgba(255,255,255,0.12)" }}>
+              <Flame size={20} style={{ color: "#fb923c" }} />
+              <p className="text-white font-black text-lg leading-none mt-0.5">{d.streak.current}</p>
+              <p className="text-white/60 text-[9px] uppercase tracking-wider">day streak</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Stats */}
       <div>
         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Your Progress</p>
         <div className="grid grid-cols-3 gap-3">
-          <StatCard icon={<BookOpen size={18} />} label="Courses" value="—" color="#1a3a6b" />
-          <StatCard icon={<Clock size={18} />} label="Hours" value="—" color="#c47d2a" />
-          <StatCard icon={<Award size={18} />} label="Certs" value="—" color="#4a9fd4" />
+          <StatCard icon={<BookOpen size={18} />} label="Courses" value={loading ? "…" : String(d?.coursesCount ?? 0)} color="#1a3a6b" />
+          <StatCard icon={<Clock size={18} />} label="Hours" value={loading ? "…" : String(d?.hours ?? 0)} color="#c47d2a" />
+          <StatCard icon={<Award size={18} />} label="Certs" value={loading ? "…" : String(d?.certificates ?? 0)} color="#4a9fd4" />
         </div>
+      </div>
+
+      {/* Milestones / badges */}
+      {d && d.badges.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Milestones</p>
+          <div className="grid grid-cols-3 gap-2.5">
+            {d.badges.map(b => (
+              <div key={b.id} className="rounded-2xl p-3 flex flex-col items-center text-center"
+                style={{ background: b.earned ? "#fff" : "#f8fafc", border: b.earned ? "1.5px solid #fde68a" : "1px dashed #e2e8f0", boxShadow: b.earned ? "0 2px 12px rgba(245,158,11,0.12)" : "none" }}>
+                <span className="text-2xl mb-1" style={{ filter: b.earned ? "none" : "grayscale(1)", opacity: b.earned ? 1 : 0.4 }}>{b.emoji}</span>
+                <p className="text-[11px] font-bold leading-tight" style={{ color: b.earned ? "#1a3a6b" : "#94a3b8" }}>{b.label}</p>
+                {!b.earned && <p className="text-[9px] text-slate-300 mt-0.5 leading-tight">{b.hint}</p>}
+                {b.earned && <span className="text-[9px] font-bold mt-1 px-1.5 py-0.5 rounded-full" style={{ background: "#fef3c7", color: "#b45309" }}>Earned</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Enrolled courses with progress */}
+      <div>
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">My Courses</p>
+        {loading ? (
+          <div className="rounded-2xl p-6 flex justify-center" style={{ background: "#f8fafc" }}>
+            <div className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#1a3a6b", borderTopColor: "transparent" }} />
+          </div>
+        ) : d && d.courses.length > 0 ? (
+          <div className="space-y-2">
+            {d.courses.map(c => {
+              const isEnergy = c.track === "energy", isSemi = c.track === "semiconductor";
+              const color = isEnergy ? "#c47d2a" : isSemi ? "#4a9fd4" : "#1a3a6b";
+              return (
+                <button key={c.code} onClick={onGoToCourses}
+                  className="w-full text-left flex items-center gap-4 p-4 rounded-2xl hover:bg-slate-50 transition-colors" style={{ background: "#fff", boxShadow: "0 1px 8px rgba(0,0,0,0.05)" }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${color}15`, color }}>
+                    {isEnergy ? <Zap size={18} /> : isSemi ? <Cpu size={18} /> : <span className="text-base">🧠</span>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-slate-700 text-sm truncate">{c.title}</p>
+                    <p className="text-xs text-slate-400">{c.lessonsDone} lessons done · {c.weeksDone} week{c.weeksDone !== 1 ? "s" : ""} complete</p>
+                  </div>
+                  <ChevronRight size={14} className="text-slate-300 shrink-0" />
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-2xl p-5 text-center" style={{ background: "#f8fafc", border: "1px dashed #e2e8f0" }}>
+            <BookOpen size={22} className="mx-auto mb-2 text-slate-300" />
+            <p className="text-sm text-slate-400">No courses assigned yet</p>
+          </div>
+        )}
       </div>
 
       {/* Upcoming */}
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Upcoming</p>
-          <span className="text-[11px] text-slate-400">See all</span>
-        </div>
-        <div className="rounded-2xl p-5 text-center" style={{ background: "#f8fafc", border: "1px dashed #e2e8f0" }}>
-          <CalendarDays size={24} className="mx-auto mb-2 text-slate-300" />
-          <p className="text-sm text-slate-400">No upcoming sessions</p>
-          <p className="text-xs text-slate-300 mt-0.5">Your cohort schedule will appear here</p>
-        </div>
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Upcoming</p>
+        {d && d.upcoming.length > 0 ? (
+          <div className="space-y-2">
+            {d.upcoming.map((u, i) => (
+              <button key={i} onClick={onGoToCourses}
+                className="w-full text-left flex items-center gap-4 p-4 rounded-2xl hover:bg-slate-50 transition-colors" style={{ background: "#fff", boxShadow: "0 1px 8px rgba(0,0,0,0.05)" }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(26,58,107,0.1)", color: "#1a3a6b" }}>
+                  <CalendarDays size={18} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-slate-700 text-sm truncate">{u.label}</p>
+                  <p className="text-xs text-slate-400">{u.sub}</p>
+                </div>
+                <span className="text-[11px] font-bold" style={{ color: "#1a3a6b" }}>Start →</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl p-5 text-center" style={{ background: "#f8fafc", border: "1px dashed #e2e8f0" }}>
+            <CalendarDays size={24} className="mx-auto mb-2 text-slate-300" />
+            <p className="text-sm text-slate-400">{loading ? "Loading…" : "Nothing scheduled yet"}</p>
+            <p className="text-xs text-slate-300 mt-0.5">Your next lessons will appear here</p>
+          </div>
+        )}
       </div>
-
     </div>
   );
 }
@@ -484,7 +584,7 @@ export default function StudentDashboard() {
   const renderContent = () => {
     if (!profile) return null;
     const views: Record<Tab, React.ReactNode> = {
-      dashboard: <DashboardTab profile={profile} />,
+      dashboard: <DashboardTab profile={profile} onGoToCourses={() => setActiveTab("courses")} />,
       courses:   <CoursesTab studentId={profile.id} />,
       cohorts:   <CohortsTab />,
       news:      <NewsTab />,
