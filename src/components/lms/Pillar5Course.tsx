@@ -478,8 +478,8 @@ function DayLessonView({
   );
 }
 
-/* ─── Week preview sheet (weeks without day content) ─────────── */
-function WeekSheet({ week, yearColor, onClose }: { week: Week; yearColor: string; onClose: () => void }) {
+/* ─── Week preview sheet (locked weeks, or weeks without day content) ─────────── */
+function WeekSheet({ week, yearColor, locked, onClose }: { week: Week; yearColor: string; locked?: boolean; onClose: () => void }) {
   return (
     <motion.div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -512,9 +512,14 @@ function WeekSheet({ week, yearColor, onClose }: { week: Week; yearColor: string
               <p className="text-sm leading-relaxed" style={{ color: "#92500f" }}>{week.example}</p>
             </div>
           )}
-          <div className="rounded-2xl p-4 text-center" style={{ background: "#f8fafc", border: "1px dashed #e2e8f0" }}>
-            <Lock size={16} className="mx-auto mb-2 text-slate-300" />
-            <p className="text-xs text-slate-400">Full day-by-day lesson content coming soon for this week</p>
+          <div className="rounded-2xl p-4 text-center" style={{ background: locked ? `${yearColor}08` : "#f8fafc", border: locked ? `1px solid ${yearColor}20` : "1px dashed #e2e8f0" }}>
+            <Lock size={16} className="mx-auto mb-2" style={{ color: locked ? yearColor : "#cbd5e1" }} />
+            <p className="text-xs font-semibold" style={{ color: locked ? yearColor : "#94a3b8" }}>
+              {locked ? "Locked" : "Coming soon"}
+            </p>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {locked ? "Finish the previous week to unlock this one." : "Full day-by-day lessons are being added for this week."}
+            </p>
           </div>
         </div>
       </motion.div>
@@ -524,29 +529,20 @@ function WeekSheet({ week, yearColor, onClose }: { week: Week; yearColor: string
 
 /* ─── Module path (week nodes) ───────────────────────────────── */
 function ModulePath({
-  year, moduleIndex, started, progress, onOpenLesson,
+  year, moduleIndex, started, progress, onOpenLesson, unlockedWeeks,
 }: {
   year: Year; moduleIndex: number; started: boolean;
-  progress: Progress; onOpenLesson: (week: Week) => void;
+  progress: Progress; onOpenLesson: (week: Week) => void; unlockedWeeks: Set<string>;
 }) {
-  const [selectedWeek, setSelectedWeek] = useState<Week | null>(null);
+  const [selectedWeek, setSelectedWeek] = useState<{ week: Week; locked: boolean } | null>(null);
   const mod = year.modules[moduleIndex];
   const isBoss = (i: number) => i === mod.weeks_detail.length - 1;
-
-  const isWeekUnlocked = (idx: number) => {
-    if (!started) return false;
-    if (idx === 0) return true; // W1 unlocked once cohort is live
-    const w1 = mod.weeks_detail[0];
-    if (!w1.days) return false;
-    // W2+ unlocks only when all 5 days of W1 are submitted
-    return w1.days.every((_, di) => `${w1.w}-D${di + 1}` in progress.completed);
-  };
 
   return (
     <>
       <div className="px-4 py-3 space-y-1">
         {mod.weeks_detail.map((week, i) => {
-          const unlocked = isWeekUnlocked(i);
+          const unlocked = unlockedWeeks.has(week.w);
           const boss = isBoss(i);
           const hasDays = !!week.days?.length;
           const isRight = i % 2 !== 0;
@@ -556,9 +552,12 @@ function ModulePath({
               <motion.button
                 whileHover={unlocked ? { scale: 1.08 } : {}}
                 whileTap={unlocked ? { scale: 0.95 } : {}}
-                onClick={() => { if (!unlocked) return; if (hasDays) onOpenLesson(week); else setSelectedWeek(week); }}
+                onClick={() => {
+                  if (unlocked && hasDays) onOpenLesson(week);
+                  else setSelectedWeek({ week, locked: !unlocked }); // locked → show preview, not attemptable
+                }}
                 className="relative flex flex-col items-center gap-1.5"
-                style={{ minWidth: boss ? 80 : 64, cursor: unlocked ? "pointer" : "default" }}>
+                style={{ minWidth: boss ? 80 : 64, cursor: "pointer" }}>
                 <div className="relative flex items-center justify-center rounded-full font-black shadow-sm transition-all"
                   style={{
                     width: boss ? 72 : 56, height: boss ? 72 : 56,
@@ -590,7 +589,7 @@ function ModulePath({
         })}
       </div>
       <AnimatePresence>
-        {selectedWeek && <WeekSheet week={selectedWeek} yearColor={year.color} onClose={() => setSelectedWeek(null)} />}
+        {selectedWeek && <WeekSheet week={selectedWeek.week} locked={selectedWeek.locked} yearColor={year.color} onClose={() => setSelectedWeek(null)} />}
       </AnimatePresence>
     </>
   );
@@ -616,6 +615,19 @@ export default function Pillar5Course({
 
   const year = years.find((y) => y.id === activeYearId) ?? years[0];
   const yearIndex = years.findIndex((y) => y.id === activeYearId);
+
+  // Sequential week unlocking across the whole year: week N opens only when week N-1 is complete.
+  const unlockedWeeks = (() => {
+    const set = new Set<string>();
+    if (!started) return set;
+    const ordered = year.modules.flatMap((m) => m.weeks_detail);
+    const weekComplete = (w: Week) => !!w.days?.length && w.days.every((_, i) => `${w.w}-D${i + 1}` in progress.completed);
+    for (let i = 0; i < ordered.length; i++) {
+      if (i === 0 || weekComplete(ordered[i - 1])) set.add(ordered[i].w);
+      else break; // first not-yet-unlocked week stops the chain
+    }
+    return set;
+  })();
 
   useEffect(() => {
     if (!studentId || !courseCode) return;
@@ -763,7 +775,7 @@ export default function Pillar5Course({
                   : <><Lock size={11} className="text-slate-300" /><p className="text-[10px] text-slate-400">Unlocks at cohort start</p></>}
               </div>
             </div>
-            <ModulePath year={year} moduleIndex={activeModuleIdx} started={started} progress={progress} onOpenLesson={setSelectedLesson} />
+            <ModulePath year={year} moduleIndex={activeModuleIdx} started={started} progress={progress} onOpenLesson={setSelectedLesson} unlockedWeeks={unlockedWeeks} />
           </div>
 
           <div className="mx-4 mb-6">
