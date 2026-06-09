@@ -14,6 +14,9 @@ import { PILLAR5_YEARS, PILLAR5_ARC, type Year, type Week, type LessonDay } from
 type DayGrade = { date: string; score: number | null; level: string | null; strength: string | null; tip: string | null; attempts: number };
 type Progress = { completed: Record<string, DayGrade>; today: string };
 const MAX_ATTEMPTS = 3;
+// Set true to enforce one lesson per calendar day. Off during testing so all days
+// unlock as soon as the previous one is submitted.
+const ONE_PER_DAY = false;
 
 // Score → stars (0-3). Returns -1 when ungraded (no AI key configured).
 function scoreToStars(score: number | null | undefined): number {
@@ -51,11 +54,12 @@ function DayLessonView({
   const dayUnlocked = (d: number) => {
     if (d === 1) return true;
     if (!isDone(d - 1)) return false;
+    if (!ONE_PER_DAY) return true; // testing: unlock immediately on submit
     return progress.completed[dayKey(d - 1)].date < progress.today;
   };
   // Locked purely because the previous day was finished today (comes back tomorrow).
   const waitingForTomorrow = (d: number) =>
-    d > 1 && isDone(d - 1) && !isDone(d) && progress.completed[dayKey(d - 1)].date === progress.today;
+    ONE_PER_DAY && d > 1 && isDone(d - 1) && !isDone(d) && progress.completed[dayKey(d - 1)].date === progress.today;
 
   const allDone = days.every((_, i) => isDone(i + 1));
 
@@ -314,7 +318,7 @@ function DayLessonView({
                                 <Stars score={g?.score} size={14} />
                               </div>
                               <p className="text-xs" style={{ color: "#16a34a" }}>
-                                {activeDay < totalDays ? `${nextLabel} unlocks tomorrow` : "Week 1 complete 🎉"}
+                                {activeDay < totalDays ? `${nextLabel} ${ONE_PER_DAY ? "unlocks tomorrow" : "is unlocked"}` : "Week 1 complete 🎉"}
                               </p>
                             </div>
                           </div>
