@@ -113,6 +113,7 @@ function DayLessonView({
           criteria: currentDayData.grading_criteria,
           min_words: minWords,
           day_title: `${currentDayData.label} — ${currentDayData.title}`,
+          video_url: currentDayData.video_url,
         }),
       });
       const data = await res.json();

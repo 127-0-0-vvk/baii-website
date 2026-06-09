@@ -1,6 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
+import videoInventory from "@/data/video-inventory.json";
+
+// The 80 object types YOLO/COCO can detect. Only these can be verified or refuted
+// against the video; everything else (shops, walls, cloth, car models…) is unverifiable.
+const COCO = "person, bicycle, car, motorcycle, airplane, bus, train, truck, boat, traffic light, fire hydrant, stop sign, parking meter, bench, bird, cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe, backpack, umbrella, handbag, tie, suitcase, frisbee, skis, snowboard, sports ball, kite, baseball bat, baseball glove, skateboard, surfboard, tennis racket, bottle, wine glass, cup, fork, knife, spoon, bowl, banana, apple, sandwich, orange, broccoli, carrot, hot dog, pizza, donut, cake, chair, couch, potted plant, bed, dining table, toilet, tv, laptop, mouse, remote, keyboard, cell phone, microwave, oven, toaster, sink, refrigerator, book, clock, vase, scissors, teddy bear, hair drier, toothbrush";
+
+// Extract a YouTube video id from an embed or watch URL.
+function videoIdFromUrl(url?: string): string | null {
+  if (!url) return null;
+  const m = url.match(/(?:embed\/|watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+  return m ? m[1] : null;
+}
+
+// Build the computer-vision fact-check block for the grader, if we have an inventory.
+function buildVideoFacts(videoUrl?: string): string | null {
+  const id = videoIdFromUrl(videoUrl);
+  if (!id) return null;
+  const inv = (videoInventory as Record<string, { objects?: Record<string, number> }>)[id];
+  const objects = inv?.objects;
+  if (!objects || !Object.keys(objects).length) return null;
+  const present = Object.keys(objects).join(", ");
+  return (
+    `COMPUTER-VISION FACT-CHECK (a model scanned the actual video frames). ` +
+    `Object types DETECTED in this video: ${present}. ` +
+    `The only object categories that can be verified at all are these ~80: ${COCO}. ` +
+    `Use this as follows: (a) reward observations that match a DETECTED object; ` +
+    `(b) if the student claims one of the ~80 checkable objects that is NOT in the detected list ` +
+    `(e.g. they wrote 'a bus' or 'a dog' but it isn't detected), treat it as likely invented and gently flag it in the tip; ` +
+    `(c) for anything OUTSIDE the ~80 list (shops, walls, cloth, colours, specific car models, buildings, road), ` +
+    `you CANNOT verify it — stay neutral, never penalise. Be fair: detection isn't perfect, so phrase any flag softly.`
+  );
+}
 
 const sb = () =>
   createClient(
@@ -22,7 +54,7 @@ type Grade = {
 
 // AI grader — replaces the teacher. Returns null if no API key (caller falls back to a plain accept).
 async function gradeWithClaude(opts: {
-  prompt: string; criteria: string; response: string; dayTitle: string;
+  prompt: string; criteria: string; response: string; dayTitle: string; videoFacts?: string | null;
 }): Promise<Grade | null> {
   if (!process.env.ANTHROPIC_API_KEY) return null;
   const client = new Anthropic();
@@ -42,6 +74,7 @@ async function gradeWithClaude(opts: {
   const user =
     `TASK GIVEN TO STUDENT:\n${opts.prompt}\n\n` +
     `GRADING GUIDANCE (what a good answer looks like):\n${opts.criteria}\n\n` +
+    (opts.videoFacts ? `${opts.videoFacts}\n\n` : "") +
     `STUDENT'S SUBMISSION (lesson: ${opts.dayTitle}):\n${opts.response}\n\nGrade it.`;
 
   try {
@@ -82,7 +115,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const {
     student_id, course_code, year_id, module_id, week_num, day_num,
-    response, prompt, criteria, min_words, day_title,
+    response, prompt, criteria, min_words, day_title, video_url,
   } = body;
 
   if (!student_id || !course_code || !year_id || !module_id || !week_num || !day_num || !response?.trim()) {
@@ -104,6 +137,7 @@ export async function POST(req: NextRequest) {
   //    and graded; the word-count gate above is the only bounce. Redo lets them improve.
   const ai = await gradeWithClaude({
     prompt: prompt ?? "", criteria: criteria ?? "", response, dayTitle: day_title ?? `Day ${day_num}`,
+    videoFacts: buildVideoFacts(video_url),
   });
 
   // 3. Build the saved grade (null score when no AI key configured).
