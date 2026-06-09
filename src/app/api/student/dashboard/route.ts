@@ -9,8 +9,6 @@ const sb = () =>
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-const HOURS_PER_LESSON = 0.5; // estimate: video + writing per day
-
 function istDate(d: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
@@ -64,10 +62,11 @@ export async function GET(req: NextRequest) {
   // 2. Lesson submissions
   const { data: subs } = await supabase
     .from("lesson_responses")
-    .select("course_code, week_num, day_num, submitted_at, score")
+    .select("course_code, week_num, day_num, submitted_at, score, time_seconds")
     .eq("student_id", studentId);
 
   const lessonsCompleted = subs?.length ?? 0;
+  const totalSeconds = (subs ?? []).reduce((a, s) => a + (s.time_seconds ?? 0), 0);
   const submissionDates = (subs ?? []).map((s) => istDate(new Date(s.submitted_at)));
   const streak = streaks(submissionDates, today);
   const scored = (subs ?? []).map((s) => s.score).filter((s): s is number => s != null);
@@ -84,9 +83,10 @@ export async function GET(req: NextRequest) {
   const courseProgress = courses.map((c) => {
     const year = PILLAR5_YEARS.find((y) => y.id === codeToYearId(c.code));
     const done = doneByCourse[c.code] ?? new Set();
-    let weeksDone = 0, weeksWithContent = 0;
+    let weeksDone = 0, weeksWithContent = 0, totalWeeks = 0;
     year?.modules.forEach((m) =>
       m.weeks_detail.forEach((w) => {
+        totalWeeks++;
         if (w.days?.length) {
           weeksWithContent++;
           if (w.days.every((_, i) => done.has(`${w.w}-D${i + 1}`))) weeksDone++;
@@ -94,11 +94,13 @@ export async function GET(req: NextRequest) {
       })
     );
     weeksCompleted += weeksDone;
-    return { ...c, lessonsDone: done.size, weeksDone, weeksWithContent };
+    // A course is "complete" only when EVERY week of the course is done (all 35), not just the ones built so far.
+    const courseComplete = totalWeeks > 0 && weeksDone === totalWeeks;
+    return { ...c, lessonsDone: done.size, weeksDone, weeksWithContent, totalWeeks, courseComplete };
   });
 
-  // 4. Certificates — a course certificate when every content week is complete (none yet, logic ready)
-  const certificates = courseProgress.filter((c) => c.weeksWithContent > 0 && c.weeksDone === c.weeksWithContent).length;
+  // 4. Certificates — only when an entire course (all its weeks) is finished.
+  const certificates = courseProgress.filter((c) => c.courseComplete).length;
 
   // 5. Upcoming — next undone day(s) in the primary course's Week 1
   const upcoming: { label: string; sub: string }[] = [];
@@ -127,7 +129,7 @@ export async function GET(req: NextRequest) {
     coursesCount: courses.length,
     courses: courseProgress,
     lessonsCompleted,
-    hours: Math.round(lessonsCompleted * HOURS_PER_LESSON * 10) / 10,
+    hours: Math.round((totalSeconds / 3600) * 10) / 10, // real time on submitted lessons
     certificates,
     streak,
     weeksCompleted,

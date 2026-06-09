@@ -2,8 +2,9 @@ export type LessonDay = {
   day: number;
   label: string;        // "Monday", "Tuesday" …
   title: string;        // Short task title
-  video_url: string;    // YouTube embed URL (https://www.youtube.com/embed/VIDEO_ID)
-  video_note: string;   // Caption shown under the video
+  video_url?: string;   // Optional YouTube embed URL — many critical-thinking days are text/claim based
+  video_note?: string;  // Caption shown under the video
+  read?: string;        // Optional "read this first" content shown when there is no video
   instructions: string; // What to do before writing
   prompt: string;       // What to write in the text box
   min_words: number;    // Minimum word count before the student can submit
@@ -96,13 +97,53 @@ export const PILLAR5_YEARS: Year[] = [
             day:5,label:"Friday",title:"Week 1 Wrap-Up",
             video_url:"https://www.youtube.com/embed/G5-LApmkKIQ",
             video_note:"A 12-minute look at everyday morning life in an Indian village. Watch it through.",
-            instructions:"Final task for Week 1. Watch the video once, then take your time with all three questions below.",
-            prompt:"1) Write 3 things you can CONFIRM from this video — things clearly visible on screen.\n\n2) Write 3 things your brain automatically ASSUMED that were not actually shown.\n\n3) Complete this sentence in 2–3 sentences:\n\"Before this week, I thought observation meant ___. Now I realise ___.\"",
-            min_words:45,
-            grading_criteria:"This is the Week 1 wrap-up. The student must (1) give 3 confirmable observations, (2) give 3 assumptions their brain added, and (3) complete the reflection sentence. Pass if all three parts are attempted and the confirm/assume distinction is mostly correct, and the reflection shows they learned something about the difference between seeing and assuming. Be warm and encouraging — this is the end of their first week.",
+            instructions:"Final task for Week 1 — you've got this! Watch the video once, then take your time with all three parts below.",
+            prompt:"You've learned to separate what you SEE from what you ASSUME. Let's put it together — kindly.\n\n1) Write 3 things you can CONFIRM you saw in the video (real observations).\n\n2) Now take 3 assumptions your brain made. Rewrite each one in this fair, kind way:\n   \"I assumed ___ . What I actually saw was ___ . A fairer way to say it is ___ .\"\n\n3) Finish these two sentences:\n   • \"One thing I used to assume about people or places — that I'll now check before I believe it — is ___.\"\n   • \"The best thing about looking carefully instead of guessing is ___.\"",
+            min_words:55,
+            grading_criteria:"Week 1 wrap-up for a Class 6 student. Reward three things: (1) three genuine observations; (2) the THREE assumptions rewritten in the fair frame 'I assumed __ / What I actually saw was __ / A fairer way to say it is __' — this reframing is the core skill: naming an assumption clearly and replacing it with a kind, evidence-based statement instead of a judgement; (3) a warm, thoughtful reflection in part 3. Praise fairness, open-mindedness and positivity — reward students who replace a negative guess with a kinder, fact-based version. Do NOT reward cynical or harsh judgements about people. Celebrate growth — this is the proud end of their very first week.",
           },
         ]},
-        {w:"W2",topic:"Assumption vs Fact",concept:"'I see...' vs 'I think...' Assumptions lead to wrong conclusions.",exercise:"5 images — write separately 'I see...' and 'I assume...' for each. Compare with class.",example:"Photo of man in torn clothes outside a shop. What do you see vs assume?"},
+        {w:"W2",topic:"Assumption vs Fact",concept:"'I see...' vs 'I think...' Assumptions lead to wrong conclusions.",exercise:"5 images — write separately 'I see...' and 'I assume...' for each. Compare with class.",example:"Photo of man in torn clothes outside a shop. What do you see vs assume?",days:[
+          {
+            day:1,label:"Monday",title:"Fact or Assumption?",
+            read:"A FACT is something you can check and prove — \"the wall is red\", \"there are 3 cows\".\nAn ASSUMPTION is something your brain quietly adds — \"the house is old\", \"he is angry\".\nBoth can feel true. Only one is proven. Today you'll learn to tell them apart.",
+            instructions:"Read the lesson above, then label each statement below.",
+            prompt:"For EACH of these 8 statements, write FACT or ASSUMPTION, and one short line saying why:\n\n1. The bus is yellow.\n2. The man is angry.\n3. She is wearing a school uniform.\n4. That family is poor.\n5. The shop's shutter is down.\n6. He is lazy because he is sleeping.\n7. There are three cows on the road.\n8. The food is tasty.",
+            min_words:40,
+            grading_criteria:"Day 1 of 'Assumption vs Fact'. Intended answers: 1 FACT, 2 ASSUMPTION (you see a face, not the feeling), 3 FACT (uniform is visible), 4 ASSUMPTION, 5 FACT, 6 ASSUMPTION (sleeping ≠ lazy), 7 FACT, 8 ASSUMPTION (taste is an opinion). Reward correct labels AND the reasoning. A Class 6 student getting most right with sensible reasons is doing well — be warm and encouraging.",
+          },
+          {
+            day:2,label:"Tuesday",title:"I See / I Think",
+            read:"Detectives keep two things apart:\n\"I SEE\" = the proof in front of you.\n\"I THINK\" = the guess your brain adds.\nExample → I SEE: a boy running. I THINK: he is late.",
+            instructions:"For each situation, separate what you SEE from what you THINK.",
+            prompt:"For each of these 4 situations, write one 'I SEE' line and one 'I THINK' line.\n\nA) A girl stands at the bus stop with a heavy bag.\nB) A man is shouting near a shop.\nC) A dog is barking at a closed gate.\nD) A boy hasn't eaten his lunch.\n\nFormat:\nA) I SEE … / I THINK …",
+            min_words:45,
+            grading_criteria:"Reward correctly splitting observation ('I SEE' = only what's literally stated) from inference ('I THINK' = the guess) for all 4 situations. Gently correct if a guess sneaks into 'I SEE'. Class 6 — encourage effort and clear thinking.",
+          },
+          {
+            day:3,label:"Wednesday",title:"The Story Your Brain Tells",
+            read:"Read this carefully:\n\"A boy is sitting alone at the lunch table. His food is untouched. He is looking at the floor.\"\nThat is ALL we actually know.",
+            instructions:"Use only the description above — no extra information.",
+            prompt:"1) Write 3 things you KNOW for sure from the description (facts).\n\n2) Write 3 different STORIES your brain might invent about why he is alone (for example: 'he has no friends', 'he is sad', 'he is new here').\n\n3) Now write ONE kind, positive explanation that could also be true (for example: 'maybe he is waiting for a friend').",
+            min_words:50,
+            grading_criteria:"Teaches that one scene allows many possible stories, and to consider kind explanations (positivity). Reward: 3 genuine facts, 3 distinct invented stories clearly held as guesses, and at least one genuinely kind/positive alternative. Praise open-mindedness and kindness; gently discourage assuming the worst about someone.",
+          },
+          {
+            day:4,label:"Thursday",title:"Spot the Assumption in a Message",
+            read:"A WhatsApp forward says:\n\"URGENT! Drinking cold water after food causes cancer. Doctors are hiding this. Forward to 10 people to save lives!\"",
+            instructions:"Read the forward above like a Truth Detective.",
+            prompt:"1) What is the message ASKING you to believe?\n\n2) What real FACTS does it actually give? (Look carefully — are there any?)\n\n3) List 2 ASSUMPTIONS it wants you to swallow without proof.\n\n4) What is one question a Truth Detective would ask before believing or forwarding it?",
+            min_words:50,
+            grading_criteria:"Reward noticing the message gives NO real evidence, naming the hidden assumptions ('cold water causes cancer', 'doctors are hiding it'), and asking a good checking question ('which doctors? which study? where is the proof?'). Class 6 — reward healthy skepticism and curiosity, not fear.",
+          },
+          {
+            day:5,label:"Friday",title:"Week 2 Wrap-Up: Fair & Kind",
+            instructions:"Last task of Week 2 — finish it thoughtfully and kindly.",
+            prompt:"You can now tell facts from assumptions. Let's finish well.\n\n1) In your own words, what is the difference between a FACT and an ASSUMPTION? (2–3 sentences)\n\n2) Think of one time you assumed something about someone and it turned out wrong. Write:\n   \"I assumed ___ . The truth was ___ .\"\n\n3) Finish this sentence:\n   \"Before I believe something about a person, one fair question I will ask myself is ___.\"",
+            min_words:55,
+            grading_criteria:"Week 2 wrap-up for a Class 6 student. Reward: a clear fact-vs-assumption explanation in their own words; an honest personal example of a wrong assumption being corrected; and a fair, positive self-question. Celebrate fairness, kindness and growth — do NOT reward harsh or cynical judgements about people.",
+          },
+        ]},
         {w:"W3",topic:"Memory is Not a Recording",concept:"Memory is reconstructive, not playback. Why two people remember the same event differently.",exercise:"Read a story. Wait 10 mins. Answer 10 questions without re-reading. Where did memory fail?",example:"Family members at the same wedding remember different things. Who is 'right'?"},
         {w:"W4",topic:"Numbers Lie If You Let Them",concept:"Percentage vs absolute numbers. Cherry-picking. Questions to ask when you see a statistic.",exercise:"3 real Indian ads with statistics. For each: what questions would a detective ask?",example:"'Crime increased 100%!' — from 1 case to 2 cases. Technically true, completely misleading."},
         {w:"W5",topic:"Photos Can Lie",concept:"Cropping, angle, context removal, old photos for new stories. How to reverse image search.",exercise:"5 viral Indian photos — find original context of each. Was the attached claim true?",example:"2008 Kerala flood photo shared as 'today's Mumbai flood.'"},

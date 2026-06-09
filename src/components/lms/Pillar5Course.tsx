@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ChevronLeft, ChevronRight, Lock, CheckCircle2,
@@ -42,10 +42,11 @@ function Stars({ score, size = 16 }: { score: number | null | undefined; size?: 
 
 /* ─── Day Lesson View ────────────────────────────────────────── */
 function DayLessonView({
-  week, year, studentId, courseCode, progress, onDayComplete, onClose,
+  week, year, studentId, courseCode, progress, onDayComplete, onClose, nextWeek, onNextWeek,
 }: {
   week: Week; year: Year; studentId?: string; courseCode?: string;
   progress: Progress; onDayComplete: (key: string, grade: DayGrade) => void; onClose: () => void;
+  nextWeek?: Week | null; onNextWeek?: () => void;
 }) {
   const days = week.days ?? [];
   const dayKey = (d: number) => `${week.w}-D${d}`;
@@ -87,11 +88,16 @@ function DayLessonView({
   >(null);
 
   const currentDayData: LessonDay | undefined = days[activeDay - 1];
+  const hasVideo = !!currentDayData?.video_url;
+  // No-video (claim/text) days have no "watch" gate — go straight to the task.
+  const ready = watched || !hasVideo;
   const minWords = currentDayData?.min_words ?? 30;
   const wordCount = response.trim() ? response.trim().split(/\s+/).filter(Boolean).length : 0;
   const meetsMin = wordCount >= minWords;
 
-  useEffect(() => { setWatched(false); setResponse(""); setFeedback(null); setRedoMode(false); }, [activeDay]);
+  // Time-on-lesson: starts when the day opens, sent (capped) at submit so dashboard "Hours" is real.
+  const startRef = useRef<number>(Date.now());
+  useEffect(() => { setWatched(false); setResponse(""); setFeedback(null); setRedoMode(false); startRef.current = Date.now(); }, [activeDay]);
 
   const submit = async () => {
     if (!meetsMin || submitting || !currentDayData) return;
@@ -114,6 +120,7 @@ function DayLessonView({
           min_words: minWords,
           day_title: `${currentDayData.label} — ${currentDayData.title}`,
           video_url: currentDayData.video_url,
+          time_seconds: Math.round((Date.now() - startRef.current) / 1000),
         }),
       });
       const data = await res.json();
@@ -214,9 +221,19 @@ function DayLessonView({
               <div className="mt-4 rounded-xl p-3" style={{ background: "rgba(255,255,255,0.15)" }}>
                 <p className="text-white/90 text-xs leading-relaxed">
                   The skill you built this week — seeing what&apos;s actually there vs. what your brain fills in —
-                  is one most adults never consciously develop. Week 2 unlocks next.
+                  is one most adults never consciously develop. On to the next one!
                 </p>
               </div>
+              {/* Continue to next week */}
+              {nextWeek && onNextWeek ? (
+                <button onClick={onNextWeek}
+                  className="mt-4 w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all hover:opacity-90"
+                  style={{ background: "white", color: year.color }}>
+                  Start next week: {nextWeek.topic} <ArrowRight size={15} />
+                </button>
+              ) : (
+                <p className="mt-4 text-white/70 text-xs">More weeks coming soon 🚀</p>
+              )}
             </div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-5 mb-2 px-1">Your 5-day journey</p>
             {days.map((d, i) => {
@@ -275,8 +292,8 @@ function DayLessonView({
                 </div>
               ) : (
                 <>
-                  {/* Video — visible only before the answer form opens (locked while writing, to stop mid-task re-watching) */}
-                  {!watched ? (
+                  {/* Video — only for video days, visible before the answer form opens (locked while writing) */}
+                  {hasVideo && !watched ? (
                     <div>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Watch first</p>
                       <div className="rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: "16/9" }}>
@@ -289,13 +306,13 @@ function DayLessonView({
                       </div>
                       <div className="flex items-center justify-between mt-1.5 px-0.5">
                         <p className="text-[10px] text-slate-400">{currentDayData.video_note}</p>
-                        <a href={currentDayData.video_url.replace("/embed/", "/watch?v=")} target="_blank" rel="noopener noreferrer"
+                        <a href={currentDayData.video_url!.replace("/embed/", "/watch?v=")} target="_blank" rel="noopener noreferrer"
                           className="text-[10px] font-semibold whitespace-nowrap ml-2" style={{ color: year.color }}>
                           Open in YouTube ↗
                         </a>
                       </div>
                     </div>
-                  ) : !(isDone(activeDay) && !redoMode) ? (
+                  ) : hasVideo && watched && !(isDone(activeDay) && !redoMode) ? (
                     // Form is open → lock the video so the student answers from memory.
                     <div className="rounded-2xl flex flex-col items-center justify-center gap-1.5 py-6" style={{ background: "#0f172a" }}>
                       <Lock size={20} style={{ color: "rgba(255,255,255,0.6)" }} />
@@ -303,6 +320,17 @@ function DayLessonView({
                       <p className="text-[10px] text-white/40">Write from what you remember — no peeking!</p>
                     </div>
                   ) : null}
+
+                  {/* Read-first / instructions card for no-video (claim/text) days */}
+                  {!hasVideo && (currentDayData.read || currentDayData.instructions) && !(isDone(activeDay) && !redoMode) && (
+                    <div className="rounded-2xl p-4" style={{ background: `${year.color}08`, border: `1px solid ${year.color}20` }}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Lightbulb size={13} style={{ color: year.color }} />
+                        <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: year.color }}>{currentDayData.read ? "Read this first" : "Today's task"}</p>
+                      </div>
+                      <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{currentDayData.read || currentDayData.instructions}</p>
+                    </div>
+                  )}
 
                   {isDone(activeDay) && !redoMode ? (
                     (() => {
@@ -342,7 +370,7 @@ function DayLessonView({
                         </div>
                       );
                     })()
-                  ) : !watched ? (
+                  ) : !ready ? (
                     <div className="space-y-3">
                       <div className="rounded-2xl p-4" style={{ background: `${year.color}08`, border: `1px solid ${year.color}20` }}>
                         <div className="flex items-center gap-2 mb-2">
@@ -602,10 +630,16 @@ export default function Pillar5Course({
   };
 
   if (selectedLesson) {
+    // Next week with day-content in this year (across modules, in order) — for the "Start next week" button.
+    const allWeeks = year.modules.flatMap((m) => m.weeks_detail);
+    const curIdx = allWeeks.findIndex((w) => w.w === selectedLesson.w);
+    const nextWeek = allWeeks.slice(curIdx + 1).find((w) => w.days?.length) ?? null;
     return (
       <DayLessonView
         week={selectedLesson} year={year} studentId={studentId} courseCode={courseCode}
         progress={progress} onDayComplete={handleDayComplete} onClose={() => setSelectedLesson(null)}
+        nextWeek={nextWeek}
+        onNextWeek={nextWeek ? () => setSelectedLesson(nextWeek) : undefined}
       />
     );
   }

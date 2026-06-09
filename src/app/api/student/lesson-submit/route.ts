@@ -115,8 +115,10 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const {
     student_id, course_code, year_id, module_id, week_num, day_num,
-    response, prompt, criteria, min_words, day_title, video_url,
+    response, prompt, criteria, min_words, day_title, video_url, time_seconds,
   } = body;
+  // Cap at 1 hour so an idle open tab can't inflate the total.
+  const timeSeconds = Math.min(Math.max(0, Math.round(Number(time_seconds) || 0)), 3600);
 
   if (!student_id || !course_code || !year_id || !module_id || !week_num || !day_num || !response?.trim()) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -174,7 +176,7 @@ export async function POST(req: NextRequest) {
       student_id, course_code, year_id, module_id, week_num, day_num,
       response: response.trim(),
       score: grade.score, level: grade.level, strength: grade.strength, tip: grade.tip,
-      attempts, submitted_at: new Date().toISOString(),
+      attempts, submitted_at: new Date().toISOString(), time_seconds: timeSeconds,
     }, { onConflict: "student_id,course_code,year_id,module_id,week_num,day_num" });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
