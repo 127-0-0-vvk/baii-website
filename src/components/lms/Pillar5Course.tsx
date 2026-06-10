@@ -9,8 +9,20 @@ import {
 } from "lucide-react";
 import { Star } from "lucide-react";
 import { PILLAR5_YEARS, PILLAR5_ARC, type Year, type Week, type LessonDay } from "@/data/pillar5";
-import { getInteractiveLesson } from "@/data/interactive";
+import dynamic from "next/dynamic";
+import { getInteractiveLesson, has3DLesson } from "@/data/interactive";
 import InteractiveLesson from "./interactive/InteractiveLesson";
+
+// three.js / R3F is heavy + client-only — load it lazily, never on the server.
+const Street3DLesson = dynamic(() => import("./interactive/Street3DLesson"), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-2xl flex flex-col items-center justify-center gap-2" style={{ height: 420, background: "#0b1020" }}>
+      <div className="w-6 h-6 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+      <p className="text-white/60 text-xs">Loading 3D lesson…</p>
+    </div>
+  ),
+});
 
 // Per-day grade returned with progress.
 type DayGrade = { date: string; score: number | null; level: string | null; strength: string | null; tip: string | null; attempts: number };
@@ -94,9 +106,11 @@ function DayLessonView({
   // An interactive (45d-style) lesson, if this day has one — it takes precedence over a video.
   const interactive = currentDayData ? getInteractiveLesson(year.id, week.w, activeDay) : null;
   const hasInteractive = !!interactive;
+  const has3D = !!currentDayData && has3DLesson(year.id, week.w, activeDay);
+  const hasTeaching = hasInteractive || has3D;
   const hasVideo = !!currentDayData?.video_url;
-  // Teaching step (interactive lesson) comes first; then the video (if any) is the task material.
-  const teachingDone = !hasInteractive || lessonDone;
+  // Teaching step (3D or interactive lesson) comes first; then the video (if any) is the task material.
+  const teachingDone = !hasTeaching || lessonDone;
   const ready = teachingDone && (!hasVideo || watched);
   const minWords = currentDayData?.min_words ?? 30;
   const wordCount = response.trim() ? response.trim().split(/\s+/).filter(Boolean).length : 0;
@@ -329,7 +343,7 @@ function DayLessonView({
                   ) : null}
 
                   {/* Read-first / instructions card for no-video (claim/text) days */}
-                  {!hasVideo && !hasInteractive && (currentDayData.read || currentDayData.instructions) && !(isDone(activeDay) && !redoMode) && (
+                  {!hasVideo && !hasTeaching && (currentDayData.read || currentDayData.instructions) && !(isDone(activeDay) && !redoMode) && (
                     <div className="rounded-2xl p-4" style={{ background: `${year.color}08`, border: `1px solid ${year.color}20` }}>
                       <div className="flex items-center gap-2 mb-2">
                         <Lightbulb size={13} style={{ color: year.color }} />
@@ -378,7 +392,11 @@ function DayLessonView({
                       );
                     })()
                   ) : !teachingDone ? (
-                    <InteractiveLesson lesson={interactive!} onComplete={() => setLessonDone(true)} onSkip={() => setLessonDone(true)} />
+                    has3D ? (
+                      <Street3DLesson accent={year.color} onComplete={() => setLessonDone(true)} onSkip={() => setLessonDone(true)} />
+                    ) : (
+                      <InteractiveLesson lesson={interactive!} onComplete={() => setLessonDone(true)} onSkip={() => setLessonDone(true)} />
+                    )
                   ) : !ready ? (
                     <div className="space-y-3">
                       <div className="rounded-2xl p-4" style={{ background: `${year.color}08`, border: `1px solid ${year.color}20` }}>
