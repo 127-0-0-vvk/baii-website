@@ -80,6 +80,7 @@ function DayLessonView({
   const [response, setResponse] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [redoMode, setRedoMode] = useState(false);
+  const [lessonDone, setLessonDone] = useState(false); // interactive teaching lesson finished
   // When the whole week is done we show a summary; focusDay lets the student reopen one day to redo.
   const [focusDay, setFocusDay] = useState<number | null>(null);
   // accepted feedback carries the grade; rejected feedback carries only a message.
@@ -93,16 +94,17 @@ function DayLessonView({
   // An interactive (45d-style) lesson, if this day has one — it takes precedence over a video.
   const interactive = currentDayData ? getInteractiveLesson(year.id, week.w, activeDay) : null;
   const hasInteractive = !!interactive;
-  const hasVideo = !hasInteractive && !!currentDayData?.video_url;
-  // Interactive days require finishing the lesson; no-video text days go straight to the task.
-  const ready = hasInteractive ? watched : (watched || !hasVideo);
+  const hasVideo = !!currentDayData?.video_url;
+  // Teaching step (interactive lesson) comes first; then the video (if any) is the task material.
+  const teachingDone = !hasInteractive || lessonDone;
+  const ready = teachingDone && (!hasVideo || watched);
   const minWords = currentDayData?.min_words ?? 30;
   const wordCount = response.trim() ? response.trim().split(/\s+/).filter(Boolean).length : 0;
   const meetsMin = wordCount >= minWords;
 
   // Time-on-lesson: starts when the day opens, sent (capped) at submit so dashboard "Hours" is real.
   const startRef = useRef<number>(Date.now());
-  useEffect(() => { setWatched(false); setResponse(""); setFeedback(null); setRedoMode(false); startRef.current = Date.now(); }, [activeDay]);
+  useEffect(() => { setWatched(false); setResponse(""); setFeedback(null); setRedoMode(false); setLessonDone(false); startRef.current = Date.now(); }, [activeDay]);
 
   const submit = async () => {
     if (!meetsMin || submitting || !currentDayData) return;
@@ -297,8 +299,8 @@ function DayLessonView({
                 </div>
               ) : (
                 <>
-                  {/* Video — only for video days, visible before the answer form opens (locked while writing) */}
-                  {hasVideo && !watched ? (
+                  {/* Video — shown after the teaching lesson, before the answer form (locked while writing) */}
+                  {hasVideo && teachingDone && !watched ? (
                     <div>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Watch first</p>
                       <div className="rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: "16/9" }}>
@@ -317,7 +319,7 @@ function DayLessonView({
                         </a>
                       </div>
                     </div>
-                  ) : hasVideo && watched && !(isDone(activeDay) && !redoMode) ? (
+                  ) : hasVideo && teachingDone && watched && !(isDone(activeDay) && !redoMode) ? (
                     // Form is open → lock the video so the student answers from memory.
                     <div className="rounded-2xl flex flex-col items-center justify-center gap-1.5 py-6" style={{ background: "#0f172a" }}>
                       <Lock size={20} style={{ color: "rgba(255,255,255,0.6)" }} />
@@ -375,25 +377,23 @@ function DayLessonView({
                         </div>
                       );
                     })()
+                  ) : !teachingDone ? (
+                    <InteractiveLesson lesson={interactive!} onComplete={() => setLessonDone(true)} onSkip={() => setLessonDone(true)} />
                   ) : !ready ? (
-                    hasInteractive ? (
-                      <InteractiveLesson lesson={interactive!} onComplete={() => setWatched(true)} onSkip={() => setWatched(true)} />
-                    ) : (
-                      <div className="space-y-3">
-                        <div className="rounded-2xl p-4" style={{ background: `${year.color}08`, border: `1px solid ${year.color}20` }}>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Play size={13} style={{ color: year.color }} />
-                            <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: year.color }}>Instructions</p>
-                          </div>
-                          <p className="text-sm text-slate-700 leading-relaxed">{currentDayData.instructions}</p>
+                    <div className="space-y-3">
+                      <div className="rounded-2xl p-4" style={{ background: `${year.color}08`, border: `1px solid ${year.color}20` }}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Play size={13} style={{ color: year.color }} />
+                          <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: year.color }}>Now watch the real street</p>
                         </div>
-                        <button onClick={() => setWatched(true)}
-                          className="w-full py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all hover:opacity-90"
-                          style={{ background: year.color }}>
-                          <CheckCircle2 size={16} /> I&apos;ve watched the video
-                        </button>
+                        <p className="text-sm text-slate-700 leading-relaxed">{currentDayData.instructions}</p>
                       </div>
-                    )
+                      <button onClick={() => setWatched(true)}
+                        className="w-full py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all hover:opacity-90"
+                        style={{ background: year.color }}>
+                        <CheckCircle2 size={16} /> I&apos;ve watched the video
+                      </button>
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       {redoMode && (
