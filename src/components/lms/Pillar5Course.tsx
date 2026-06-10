@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { Star } from "lucide-react";
 import { PILLAR5_YEARS, PILLAR5_ARC, type Year, type Week, type LessonDay } from "@/data/pillar5";
+import { getInteractiveLesson } from "@/data/interactive";
+import InteractiveLesson from "./interactive/InteractiveLesson";
 
 // Per-day grade returned with progress.
 type DayGrade = { date: string; score: number | null; level: string | null; strength: string | null; tip: string | null; attempts: number };
@@ -88,9 +90,12 @@ function DayLessonView({
   >(null);
 
   const currentDayData: LessonDay | undefined = days[activeDay - 1];
-  const hasVideo = !!currentDayData?.video_url;
-  // No-video (claim/text) days have no "watch" gate — go straight to the task.
-  const ready = watched || !hasVideo;
+  // An interactive (45d-style) lesson, if this day has one — it takes precedence over a video.
+  const interactive = currentDayData ? getInteractiveLesson(year.id, week.w, activeDay) : null;
+  const hasInteractive = !!interactive;
+  const hasVideo = !hasInteractive && !!currentDayData?.video_url;
+  // Interactive days require finishing the lesson; no-video text days go straight to the task.
+  const ready = hasInteractive ? watched : (watched || !hasVideo);
   const minWords = currentDayData?.min_words ?? 30;
   const wordCount = response.trim() ? response.trim().split(/\s+/).filter(Boolean).length : 0;
   const meetsMin = wordCount >= minWords;
@@ -322,7 +327,7 @@ function DayLessonView({
                   ) : null}
 
                   {/* Read-first / instructions card for no-video (claim/text) days */}
-                  {!hasVideo && (currentDayData.read || currentDayData.instructions) && !(isDone(activeDay) && !redoMode) && (
+                  {!hasVideo && !hasInteractive && (currentDayData.read || currentDayData.instructions) && !(isDone(activeDay) && !redoMode) && (
                     <div className="rounded-2xl p-4" style={{ background: `${year.color}08`, border: `1px solid ${year.color}20` }}>
                       <div className="flex items-center gap-2 mb-2">
                         <Lightbulb size={13} style={{ color: year.color }} />
@@ -371,20 +376,24 @@ function DayLessonView({
                       );
                     })()
                   ) : !ready ? (
-                    <div className="space-y-3">
-                      <div className="rounded-2xl p-4" style={{ background: `${year.color}08`, border: `1px solid ${year.color}20` }}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <Play size={13} style={{ color: year.color }} />
-                          <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: year.color }}>Instructions</p>
+                    hasInteractive ? (
+                      <InteractiveLesson lesson={interactive!} onComplete={() => setWatched(true)} onSkip={() => setWatched(true)} />
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="rounded-2xl p-4" style={{ background: `${year.color}08`, border: `1px solid ${year.color}20` }}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Play size={13} style={{ color: year.color }} />
+                            <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: year.color }}>Instructions</p>
+                          </div>
+                          <p className="text-sm text-slate-700 leading-relaxed">{currentDayData.instructions}</p>
                         </div>
-                        <p className="text-sm text-slate-700 leading-relaxed">{currentDayData.instructions}</p>
+                        <button onClick={() => setWatched(true)}
+                          className="w-full py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all hover:opacity-90"
+                          style={{ background: year.color }}>
+                          <CheckCircle2 size={16} /> I&apos;ve watched the video
+                        </button>
                       </div>
-                      <button onClick={() => setWatched(true)}
-                        className="w-full py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all hover:opacity-90"
-                        style={{ background: year.color }}>
-                        <CheckCircle2 size={16} /> I&apos;ve watched the video
-                      </button>
-                    </div>
+                    )
                   ) : (
                     <div className="space-y-3">
                       {redoMode && (
