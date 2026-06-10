@@ -31,28 +31,38 @@ export default function InteractiveLesson({
   // Reset per-segment interaction state.
   useEffect(() => { setInteractionDone(false); }, [index]);
 
-  // Narrate the current segment with free browser TTS, and auto-advance when it ends.
+  // Drive the lesson on an independent timer (robust), and speak best-effort in parallel.
+  // We do NOT rely on the speech "end" event — Chrome silently kills long utterances,
+  // which used to stall the lesson. Captions always show; voice is a bonus.
   useEffect(() => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    if (!playing || muted) { setSpeaking(false); return; }
-    const synth = window.speechSynthesis;
-    const u = new SpeechSynthesisUtterance(seg.narration);
-    u.rate = 0.97; u.pitch = 1.0;
-    const voices = synth.getVoices();
-    const v = voices.find((x) => /en[-_]?(IN|GB|US)/i.test(x.lang) && /female|google|natural|samantha|aria/i.test(x.name))
-      || voices.find((x) => /^en/i.test(x.lang));
-    if (v) u.voice = v;
-    let active = true;
-    setSpeaking(true);
-    u.onend = () => {
-      if (!active) return;
+    if (!playing) { setSpeaking(false); return; }
+    const words = seg.narration.trim().split(/\s+/).filter(Boolean).length;
+    const displayMs = Math.min(13000, Math.max(2800, words * 360 + 1400));
+
+    let keepAlive: ReturnType<typeof setInterval> | undefined;
+    if (!muted && typeof window !== "undefined" && "speechSynthesis" in window) {
+      const synth = window.speechSynthesis;
+      const u = new SpeechSynthesisUtterance(seg.narration);
+      u.rate = 0.97;
+      const voices = synth.getVoices();
+      const v = voices.find((x) => /en[-_]?(IN|GB|US)/i.test(x.lang)) || voices.find((x) => /^en/i.test(x.lang));
+      if (v) u.voice = v;
+      u.onstart = () => setSpeaking(true);
+      u.onend = () => setSpeaking(false);
+      u.onerror = () => setSpeaking(false);
+      try { synth.cancel(); synth.speak(u); } catch { /* ignore */ }
+      // Chrome stops speaking after ~15s unless nudged.
+      keepAlive = setInterval(() => { try { if (synth.speaking) { synth.pause(); synth.resume(); } } catch { /* ignore */ } }, 9000);
+    }
+
+    const timer = seg.requireInteraction ? undefined : setTimeout(() => advance(), displayMs);
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      if (keepAlive) clearInterval(keepAlive);
       setSpeaking(false);
-      if (!seg.requireInteraction) advance();
+      if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
     };
-    u.onerror = () => { if (active) setSpeaking(false); };
-    synth.cancel();
-    synth.speak(u);
-    return () => { active = false; setSpeaking(false); synth.cancel(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, playing, muted, replayNonce]);
 

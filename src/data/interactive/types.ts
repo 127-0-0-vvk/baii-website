@@ -7,6 +7,7 @@ export type SceneObject = { emoji: string; label: string };
 export type Scene =
   | { type: "title"; title: string; subtitle?: string }
   | { type: "text"; heading?: string; body: string }
+  | { type: "streetPan" }                                                // cinematic camera pan across a 2D street
   | { type: "reveal"; heading?: string; items: SceneObject[] }           // items fade in one-by-one
   | { type: "spotlight"; emoji: string; label: string }                  // one big focal object
   | {

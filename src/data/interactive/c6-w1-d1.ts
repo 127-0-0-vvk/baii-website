@@ -18,19 +18,8 @@ export const C6_W1_D1: InteractiveLesson = {
     },
     {
       id: "street",
-      narration: "Watch this street carefully. A person… a car… a scooter… a backpack… a chair… and a traffic light.",
-      scene: {
-        type: "reveal",
-        heading: "Watch the street",
-        items: [
-          { emoji: "🚶", label: "person" },
-          { emoji: "🚗", label: "car" },
-          { emoji: "🛵", label: "scooter" },
-          { emoji: "🎒", label: "backpack" },
-          { emoji: "🪑", label: "chair" },
-          { emoji: "🚦", label: "traffic light" },
-        ],
-      },
+      narration: "Watch this busy street as we move down it. A person walking… a red car… a blue scooter… some shops… a chair on the footpath… and a traffic light. Try to remember them all.",
+      scene: { type: "streetPan" },
     },
     {
       id: "tap",

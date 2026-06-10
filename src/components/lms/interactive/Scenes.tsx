@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import anime from "animejs";
 import { CheckCircle2, XCircle } from "lucide-react";
 import type { Scene } from "@/data/interactive/types";
+import StreetPanScene from "./StreetPanScene";
 
 export function SceneStage({
   scene, accent, onInteractionComplete,
@@ -43,6 +44,10 @@ export function SceneStage({
           {scene.heading && <p data-anim className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: accent }}>{scene.heading}</p>}
           <p data-anim className="font-black text-2xl sm:text-3xl text-slate-800 leading-snug whitespace-pre-line" style={{ fontFamily: "var(--font-playfair)" }}>{scene.body}</p>
         </>
+      )}
+
+      {scene.type === "streetPan" && (
+        <div data-anim className="w-full max-w-xl"><StreetPanScene accent={accent} /></div>
       )}
 
       {scene.type === "spotlight" && (
