@@ -28,6 +28,16 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ id: data.id });
 }
 
+// DELETE ?id= — remove a cohort (cascades pods/members/semesters)
+export async function DELETE(req: NextRequest) {
+  const id = req.nextUrl.searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  const supabase = sb();
+  const { error } = await supabase.from("cohorts").delete().eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
+
 // PATCH — set current sem/week and/or a semester start date
 export async function PATCH(req: NextRequest) {
   const { id, current_sem, current_week, sem, start_date } = await req.json();

@@ -6,15 +6,16 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   LayoutDashboard, Users, ShieldQuestion, CalendarCog, UserPlus, LogOut, X,
-  Plus, ChevronRight, ChevronLeft, Shield, Link2, Trash2, CheckCircle2, Minus,
+  Plus, ChevronDown, Shield, Link2, Trash2, CheckCircle2, Minus, BookOpen, Radio, Hammer, Send,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { getWeek, semesterTitle, weeksInSemester, WEEKS_PER_SEM } from "@/lib/ctc";
+import { getWeek, semesterTitle, weeksInSemester, themesInSemester, WEEKS_PER_SEM } from "@/lib/ctc";
+import { CTC_SEMESTERS } from "@/data/ctc/curriculum";
 
 type Profile = { id: string; email: string; full_name: string; role: string };
 type Cohort = { id: string; name: string; program: string; current_sem: number; current_week: number; podCount: number; semStarts: Record<number, string> };
 type Pod = { id: string; name: string; discord_url: string | null; charter: string | null; members: { id: string; name: string; email: string }[] };
-type Tab = "cohort" | "pods" | "defense" | "students" | "account";
+type Tab = "dashboard" | "course" | "cohort" | "pods" | "defense" | "students" | "account";
 
 function Av({ name, size = 34 }: { name: string; size?: number }) {
   const p = (name || "?").trim().split(" "); const l = p.length >= 2 ? p[0][0] + p[p.length - 1][0] : (p[0] || "?").slice(0, 2);
@@ -29,7 +30,7 @@ function CohortTab({ cohorts, active, onRefresh, onSelect }: { cohorts: Cohort[]
 
   return (
     <div className="space-y-5">
-      <div><h1 className="text-2xl font-black text-slate-800" style={{ fontFamily: "var(--font-playfair)" }}>Cohorts & Calendar</h1><p className="text-slate-400 text-sm mt-0.5">Create a cohort, set where it is in the programme, and the semester dates.</p></div>
+      <div><h1 className="text-2xl font-black text-slate-800" style={{ fontFamily: "var(--font-playfair)" }}>Cohorts & Calendar</h1><p className="text-slate-400 text-sm mt-0.5">A <b>cohort</b> = one batch of students running the 2-year CTC programme together. Create one, set which Sem/Week they&apos;re on, and the semester start dates.</p></div>
 
       <div className="flex gap-2">
         <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New cohort name (e.g. 2026 Batch A)" className="flex-1 rounded-xl px-3.5 py-2.5 text-sm border border-slate-200 bg-white focus:outline-none focus:border-slate-300" />
@@ -38,10 +39,11 @@ function CohortTab({ cohorts, active, onRefresh, onSelect }: { cohorts: Cohort[]
 
       <div className="space-y-2">
         {cohorts.map((c) => (
-          <button key={c.id} onClick={() => onSelect(c.id)} className="w-full text-left flex items-center gap-3 p-4 rounded-2xl bg-white" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.05)", border: active?.id === c.id ? "1.5px solid #1a3a6b" : "1px solid transparent" }}>
+          <div key={c.id} className="flex items-center gap-2 p-4 rounded-2xl bg-white cursor-pointer" onClick={() => onSelect(c.id)} style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.05)", border: active?.id === c.id ? "1.5px solid #1a3a6b" : "1px solid transparent" }}>
             <div className="flex-1"><p className="font-semibold text-slate-700 text-sm">{c.name}</p><p className="text-xs text-slate-400">{c.podCount} pods · Sem {c.current_sem} · Week {c.current_week}</p></div>
             {active?.id === c.id && <span className="text-[10px] font-bold px-2 py-1 rounded-full" style={{ background: "rgba(26,58,107,0.1)", color: "#1a3a6b" }}>Active</span>}
-          </button>
+            <button onClick={(e) => { e.stopPropagation(); if (confirm(`Delete cohort "${c.name}"? This removes its pods and submissions.`)) fetch(`/api/admin/cohorts?id=${c.id}`, { method: "DELETE" }).then(onRefresh); }} className="text-slate-300 hover:text-red-500 shrink-0"><Trash2 size={15} /></button>
+          </div>
         ))}
         {!cohorts.length && <p className="text-sm text-slate-400">No cohorts yet — create one above.</p>}
       </div>
@@ -250,17 +252,119 @@ function CreateStudent({ onClose, onDone }: { onClose: () => void; onDone: () =>
   );
 }
 
+/* ─── COURSE (the 2-year CTC programme, day by day) ─────────── */
+const DAY_ICON = (label: string) => /kickoff/i.test(label) ? Radio : /doubt/i.test(label) ? ShieldQuestion : /submit|defend/i.test(label) ? Send : Hammer;
+
+function CourseTab() {
+  const [sem, setSem] = useState(1);
+  const [openWeek, setOpenWeek] = useState<number | null>(1);
+  return (
+    <div className="space-y-5">
+      <div><h1 className="text-2xl font-black text-slate-800" style={{ fontFamily: "var(--font-playfair)" }}>Course — Critical Thinking & Communication</h1><p className="text-slate-400 text-sm mt-0.5">The 2-year programme · 4 semesters × 18 weeks · day by day. (Content edited in code for now.)</p></div>
+
+      {/* Semester tabs */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {CTC_SEMESTERS.map((s) => (
+          <button key={s.sem} onClick={() => { setSem(s.sem); setOpenWeek(null); }} className="shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold" style={{ background: sem === s.sem ? "#1a3a6b" : "white", color: sem === s.sem ? "white" : "#64748b", border: "1px solid #e2e8f0" }}>
+            Sem {s.sem}
+          </button>
+        ))}
+      </div>
+      <p className="text-sm font-semibold text-slate-600">{semesterTitle(sem)}</p>
+
+      {themesInSemester(sem).map((t) => (
+        <div key={t.theme}>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">{t.theme}</p>
+          <div className="space-y-2">
+            {t.weeks.map((wn) => {
+              const w = getWeek(sem, wn)!;
+              const open = openWeek === wn;
+              return (
+                <div key={wn} className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.04)" }}>
+                  <button onClick={() => setOpenWeek(open ? null : wn)} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-black text-white" style={{ background: "#1a3a6b" }}>{wn}</div>
+                    <div className="flex-1 min-w-0"><p className="font-semibold text-slate-700 text-sm">{w.title}</p><p className="text-[11px] text-slate-400 truncate">{w.objective}</p></div>
+                    {w.rooted && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: "rgba(196,125,42,0.12)", color: "#c47d2a" }}>rooted</span>}
+                    <ChevronDown size={15} className="text-slate-300 shrink-0 transition-transform" style={{ transform: open ? "rotate(180deg)" : "none" }} />
+                  </button>
+                  {open && (
+                    <div className="px-4 pb-4 space-y-3 border-t border-slate-50 pt-3">
+                      <p className="text-xs text-slate-500"><b className="text-slate-600">You gain:</b> {w.gain}</p>
+                      <div className="space-y-1.5">
+                        {w.days.map((d) => {
+                          const Icon = DAY_ICON(d.label);
+                          return (
+                            <div key={d.day} className="flex items-start gap-2.5">
+                              <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: d.live ? "rgba(220,38,38,0.1)" : "rgba(26,58,107,0.07)", color: d.live ? "#dc2626" : "#1a3a6b" }}><Icon size={13} /></div>
+                              <div className="flex-1"><p className="text-[11px] font-bold text-slate-600">{d.day} · {d.label} <span className="font-semibold" style={{ color: d.live ? "#dc2626" : "#94a3b8" }}>· {d.live ? "LIVE" : "SUPPORT"}</span></p><p className="text-[11px] text-slate-500">{d.text}</p></div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="rounded-xl p-2.5" style={{ background: "rgba(196,125,42,0.06)" }}><p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#c47d2a" }}>Deliverable</p><p className="text-xs text-slate-600">{w.deliverable}</p></div>
+                      <div className="rounded-xl p-2.5" style={{ background: "rgba(220,38,38,0.05)" }}><p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: "#dc2626" }}>Friday defense</p><ul className="space-y-0.5">{w.defense.map((q, i) => <li key={i} className="text-xs text-slate-600 flex gap-1.5"><b style={{ color: "#dc2626" }}>{i + 1}.</b> {q}</li>)}</ul></div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ─── DASHBOARD (overview) ──────────────────────────────────── */
+function DashboardTab({ cohorts, students, onGo }: { cohorts: Cohort[]; students: Profile[]; onGo: (t: Tab) => void }) {
+  const totalPods = cohorts.reduce((a, c) => a + c.podCount, 0);
+  const stat = (label: string, value: string | number, color: string) => (
+    <div className="bg-white rounded-2xl p-5 border border-slate-100" style={{ boxShadow: "0 1px 12px rgba(0,0,0,0.04)" }}>
+      <p className="text-2xl font-black text-slate-800" style={{ fontFamily: "var(--font-playfair)" }}>{value}</p>
+      <p className="text-xs mt-0.5" style={{ color }}>{label}</p>
+    </div>
+  );
+  return (
+    <div className="space-y-6">
+      <div><h1 className="text-2xl font-black text-slate-800" style={{ fontFamily: "var(--font-playfair)" }}>Dashboard</h1><p className="text-slate-400 text-sm mt-0.5">BAII Groundtruth Studio · Critical Thinking & Communication</p></div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {stat("Cohorts", cohorts.length, "#1a3a6b")}
+        {stat("Pods", totalPods, "#c47d2a")}
+        {stat("Students", students.length, "#4a9fd4")}
+        {stat("Program", "2-yr CTC", "#16a34a")}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {[["course", "View the course", "All 4 semesters, week by week", BookOpen], ["cohort", "Cohorts & calendar", "Set the week, dates", CalendarCog], ["pods", "Manage pods", "Teams of 4 + members", Users], ["defense", "Friday defense", "Record outcomes", ShieldQuestion]].map(([id, t, d, Icon]) => {
+          const I = Icon as typeof BookOpen;
+          return (
+            <button key={id as string} onClick={() => onGo(id as Tab)} className="text-left bg-white rounded-2xl p-4 flex items-center gap-3" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.05)" }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(26,58,107,0.08)", color: "#1a3a6b" }}><I size={18} /></div>
+              <div><p className="font-semibold text-slate-700 text-sm">{t as string}</p><p className="text-xs text-slate-400">{d as string}</p></div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="rounded-2xl p-4" style={{ background: "rgba(26,58,107,0.04)", border: "1px solid rgba(26,58,107,0.1)" }}>
+        <p className="text-sm font-semibold text-slate-700 mb-1">More analytics coming here</p>
+        <p className="text-xs text-slate-500">Pod progress, defense outcomes over the semester, attendance and submissions — this overview will fill in as cohorts run.</p>
+      </div>
+    </div>
+  );
+}
+
 /* ─── NAV + MAIN ────────────────────────────────────────────── */
 const NAV = [
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "course", label: "Course", icon: BookOpen },
   { id: "cohort", label: "Cohorts", icon: CalendarCog },
   { id: "pods", label: "Pods", icon: Users },
   { id: "defense", label: "Defense", icon: ShieldQuestion },
-  { id: "students", label: "Students", icon: LayoutDashboard },
+  { id: "students", label: "Students", icon: Users },
 ] as const;
 
 export default function AdminDashboard() {
   const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
-  const [tab, setTab] = useState<Tab>("cohort");
+  const [tab, setTab] = useState<Tab>("dashboard");
   const [cohorts, setCohorts] = useState<Cohort[]>([]);
   const [activeCohortId, setActiveCohortId] = useState<string | null>(null);
   const [students, setStudents] = useState<Profile[]>([]);
@@ -299,6 +403,8 @@ export default function AdminDashboard() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#1a3a6b", borderTopColor: "transparent" }} /></div>;
 
   const page = () => {
+    if (tab === "dashboard") return <DashboardTab cohorts={cohorts} students={students} onGo={setTab} />;
+    if (tab === "course") return <CourseTab />;
     if (tab === "cohort") return <CohortTab cohorts={cohorts} active={active} onRefresh={fetchAll} onSelect={setActiveCohortId} />;
     if (tab === "pods") return <PodsTab active={active} students={students} onRefresh={fetchAll} />;
     if (tab === "defense") return <DefenseTab active={active} adminId={adminId} onRefresh={fetchAll} />;
