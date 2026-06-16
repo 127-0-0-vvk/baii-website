@@ -41,6 +41,11 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   }
+  if (body.action === "delete") {
+    const { error } = await supabase.from("pods").delete().eq("id", body.pod_id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
   if (body.action === "update") {
     const { error } = await supabase.from("pods").update({ discord_url: body.discord_url ?? null, charter: body.charter ?? null, name: body.name }).eq("id", body.pod_id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

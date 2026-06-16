@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   LayoutDashboard, Users, ShieldQuestion, CalendarCog, UserPlus, LogOut, X,
-  Plus, ChevronDown, Shield, Link2, Trash2, CheckCircle2, Minus, BookOpen, Radio, Hammer, Send,
+  Plus, ChevronDown, ChevronLeft, ChevronRight, Shield, Link2, Trash2, CheckCircle2, Minus, BookOpen, Radio, Hammer, Send,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getWeek, semesterTitle, weeksInSemester, themesInSemester, WEEKS_PER_SEM } from "@/lib/ctc";
@@ -117,7 +117,10 @@ function PodsTab({ active, students, onRefresh }: { active: Cohort | null; stude
         <div key={p.id} className="bg-white rounded-2xl p-4" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.05)" }}>
           <div className="flex items-center justify-between mb-2">
             <p className="font-bold text-slate-700">{p.name} <span className="text-xs font-normal text-slate-400">· {p.members.length}/4</span></p>
-            <button onClick={() => setAddTo(addTo === p.id ? null : p.id)} className="text-[11px] font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1" style={{ background: "rgba(26,58,107,0.08)", color: "#1a3a6b" }}><UserPlus size={11} /> Add member</button>
+            <div className="flex items-center gap-1.5">
+              <button onClick={() => setAddTo(addTo === p.id ? null : p.id)} className="text-[11px] font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1" style={{ background: "rgba(26,58,107,0.08)", color: "#1a3a6b" }}><UserPlus size={11} /> Add member</button>
+              <button onClick={() => { if (confirm(`Delete ${p.name}?`)) action({ action: "delete", pod_id: p.id }); }} className="text-slate-300 hover:text-red-500"><Trash2 size={14} /></button>
+            </div>
           </div>
           <div className="divide-y divide-slate-50">
             {p.members.map((m) => (
@@ -168,6 +171,10 @@ function DefenseTab({ active, adminId, onRefresh }: { active: Cohort | null; adm
   return (
     <div className="space-y-5">
       <div><h1 className="text-2xl font-black text-slate-800" style={{ fontFamily: "var(--font-playfair)" }}>Friday Defense</h1><p className="text-slate-400 text-sm mt-0.5">{active.name} · {semesterTitle(sem).split(" — ")[0]} · Week {week}{w ? ` — ${w.title}` : ""}</p></div>
+      <div className="rounded-xl p-3 flex gap-2.5" style={{ background: "rgba(26,58,107,0.04)", border: "1px solid rgba(26,58,107,0.1)" }}>
+        <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ background: "rgba(26,58,107,0.12)", color: "#1a3a6b" }}><span className="text-[10px] font-black">i</span></div>
+        <p className="text-xs text-slate-500 leading-relaxed">The defense <b className="text-slate-600">is the assessment</b>. Each pod submits its deliverable, then defends it live — you fire the questions below, and record an outcome per pod. Change the week in <b className="text-slate-600">Cohorts</b>. (Showing this cohort&apos;s current week.)</p>
+      </div>
       {w && (
         <div className="rounded-2xl p-4" style={{ background: "rgba(220,38,38,0.04)", border: "1px solid rgba(220,38,38,0.15)" }}>
           <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: "#dc2626" }}>Fire these questions</p>
@@ -208,23 +215,77 @@ function DefenseRow({ row, onRecord }: { row: SubRow; onRecord: (id: string, out
 }
 
 /* ─── STUDENTS ──────────────────────────────────────────────── */
-function StudentsTab({ students, onRefresh }: { students: Profile[]; onRefresh: () => void }) {
+function StudentsTab({ students, cohorts, onRefresh }: { students: Profile[]; cohorts: Cohort[]; onRefresh: () => void }) {
   const [open, setOpen] = useState(false);
+  const [assign, setAssign] = useState<Profile | null>(null);
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-black text-slate-800" style={{ fontFamily: "var(--font-playfair)" }}>Students</h1><p className="text-slate-400 text-sm mt-0.5">{students.length} students</p></div>
+        <div><h1 className="text-2xl font-black text-slate-800" style={{ fontFamily: "var(--font-playfair)" }}>Students</h1><p className="text-slate-400 text-sm mt-0.5">{students.length} students · assign each to a pod to enrol them</p></div>
         <button onClick={() => setOpen(true)} className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center gap-1.5" style={{ background: "linear-gradient(135deg,#1a3a6b,#235098)" }}><UserPlus size={15} /> New student</button>
       </div>
       <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.05)" }}>
         {students.map((s, i) => (
           <div key={s.id} className="flex items-center gap-3 px-4 py-3" style={{ borderTop: i ? "1px solid #f1f5f9" : "none" }}>
             <Av name={s.full_name} size={32} /><div className="flex-1 min-w-0"><p className="font-medium text-slate-700 text-sm truncate">{s.full_name}</p><p className="text-xs text-slate-400 truncate">{s.email}</p></div>
+            <button onClick={() => setAssign(s)} className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shrink-0" style={{ background: "rgba(26,58,107,0.08)", color: "#1a3a6b" }}><UserPlus size={11} /> Assign to pod</button>
           </div>
         ))}
         {!students.length && <p className="text-sm text-slate-400 p-5 text-center">No students yet.</p>}
       </div>
       {open && <CreateStudent onClose={() => setOpen(false)} onDone={() => { setOpen(false); onRefresh(); }} />}
+      {assign && <AssignPodModal student={assign} cohorts={cohorts} onClose={() => setAssign(null)} onDone={() => { setAssign(null); onRefresh(); }} />}
+    </div>
+  );
+}
+
+function AssignPodModal({ student, cohorts, onClose, onDone }: { student: Profile; cohorts: Cohort[]; onClose: () => void; onDone: () => void }) {
+  const [cohortId, setCohortId] = useState(cohorts[0]?.id ?? "");
+  const [pods, setPods] = useState<Pod[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState("");
+
+  useEffect(() => {
+    if (!cohortId) return;
+    setLoading(true);
+    fetch(`/api/admin/pods?cohort_id=${cohortId}`).then((r) => r.json()).then((d) => setPods(d.pods ?? [])).finally(() => setLoading(false));
+  }, [cohortId]);
+
+  const assignTo = async (pod: Pod) => {
+    await fetch("/api/admin/pods", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "add_member", pod_id: pod.id, student_id: student.id }) });
+    setDone(pod.name); onDone();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"><div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }} className="relative bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl z-10">
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-300"><X size={16} /></button>
+        {done ? (
+          <div className="text-center py-3"><CheckCircle2 size={36} className="mx-auto mb-3 text-green-500" /><p className="font-bold text-slate-800">{student.full_name} assigned!</p><p className="text-sm text-slate-400 mt-1">Added to {done}</p></div>
+        ) : (
+          <>
+            <p className="font-bold text-slate-800 mb-1">Assign to a pod</p>
+            <p className="text-xs text-slate-400 mb-4">Enrolling <span className="font-semibold text-slate-600">{student.full_name}</span> into the CTC programme via a pod.</p>
+            <label className="text-[11px] font-semibold text-slate-500">Cohort</label>
+            <select value={cohortId} onChange={(e) => setCohortId(e.target.value)} className="w-full mt-1 mb-3 rounded-xl px-3 py-2.5 text-sm border border-slate-200 bg-slate-50 focus:outline-none">
+              {cohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <label className="text-[11px] font-semibold text-slate-500">Pod</label>
+            <div className="mt-1 max-h-52 overflow-y-auto space-y-1.5">
+              {loading ? <p className="text-xs text-slate-400 py-3 text-center">Loading pods…</p> :
+                pods.length ? pods.map((p) => {
+                  const has = p.members.some((m) => m.id === student.id);
+                  return (
+                    <button key={p.id} disabled={has} onClick={() => assignTo(p)} className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm border disabled:opacity-50" style={{ borderColor: "#e2e8f0", background: "white" }}>
+                      <span className="font-medium text-slate-700">{p.name} <span className="text-xs text-slate-400">· {p.members.length}/4</span></span>
+                      <span className="text-[11px] font-semibold" style={{ color: has ? "#16a34a" : "#1a3a6b" }}>{has ? "Already in" : "Add →"}</span>
+                    </button>
+                  );
+                }) : <p className="text-xs text-slate-400 py-3 text-center">No pods in this cohort. Create pods in the Pods tab first.</p>}
+            </div>
+          </>
+        )}
+      </motion.div>
     </div>
   );
 }
@@ -255,12 +316,42 @@ function CreateStudent({ onClose, onDone }: { onClose: () => void; onDone: () =>
 /* ─── COURSE (the 2-year CTC programme, day by day) ─────────── */
 const DAY_ICON = (label: string) => /kickoff/i.test(label) ? Radio : /doubt/i.test(label) ? ShieldQuestion : /submit|defend/i.test(label) ? Send : Hammer;
 
+// Course catalogue → cards. Click a course to open its dedicated detail page.
 function CourseTab() {
+  const [open, setOpen] = useState<string | null>(null);
+  if (open === "ctc") return <CourseDetail onBack={() => setOpen(null)} />;
+  return (
+    <div className="space-y-5">
+      <div><h1 className="text-2xl font-black text-slate-800" style={{ fontFamily: "var(--font-playfair)" }}>Courses</h1><p className="text-slate-400 text-sm mt-0.5">BAII programmes. Click a course to see its full day-by-day plan.</p></div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* CTC course card */}
+        <button onClick={() => setOpen("ctc")} className="text-left rounded-2xl overflow-hidden bg-white" style={{ boxShadow: "0 1px 12px rgba(0,0,0,0.06)" }}>
+          <div className="p-5 relative overflow-hidden" style={{ background: "linear-gradient(135deg,#1a3a6b,#235098)" }}>
+            <div className="absolute right-0 top-0 w-24 h-24 rounded-full blur-2xl opacity-25" style={{ background: "#c47d2a", transform: "translate(30%,-30%)" }} />
+            <span className="text-[10px] font-bold text-white/60 uppercase tracking-widest">Pillar 1 · Live studio</span>
+            <h3 className="text-white font-black text-lg mt-0.5 leading-tight" style={{ fontFamily: "var(--font-playfair)" }}>Critical Thinking &amp; Communication</h3>
+            <div className="flex flex-wrap gap-1.5 mt-3">{["2 years", "4 semesters", "72 weeks", "Pods of 4"].map((t) => <span key={t} className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(255,255,255,0.15)", color: "white" }}>{t}</span>)}</div>
+          </div>
+          <div className="px-5 py-3 flex items-center justify-between"><span className="text-xs text-slate-400">Mind → Think → Communicate → Decide &amp; Build</span><span className="flex items-center gap-1 text-xs font-bold" style={{ color: "#1a3a6b" }}>Open <ChevronRight size={13} /></span></div>
+        </button>
+        {/* Placeholder for future courses */}
+        <div className="rounded-2xl border border-dashed border-slate-200 flex flex-col items-center justify-center text-center p-6" style={{ background: "#f8fafc" }}>
+          <Plus size={22} className="text-slate-300 mb-2" />
+          <p className="text-sm font-semibold text-slate-400">More courses coming</p>
+          <p className="text-xs text-slate-300 mt-0.5">New programmes will appear here as cards.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CourseDetail({ onBack }: { onBack: () => void }) {
   const [sem, setSem] = useState(1);
   const [openWeek, setOpenWeek] = useState<number | null>(1);
   return (
     <div className="space-y-5">
-      <div><h1 className="text-2xl font-black text-slate-800" style={{ fontFamily: "var(--font-playfair)" }}>Course — Critical Thinking & Communication</h1><p className="text-slate-400 text-sm mt-0.5">The 2-year programme · 4 semesters × 18 weeks · day by day. (Content edited in code for now.)</p></div>
+      <button onClick={onBack} className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: "#1a3a6b" }}><ChevronLeft size={14} /> All courses</button>
+      <div><h1 className="text-2xl font-black text-slate-800" style={{ fontFamily: "var(--font-playfair)" }}>Critical Thinking &amp; Communication</h1><p className="text-slate-400 text-sm mt-0.5">The 2-year programme · 4 semesters × 18 weeks · day by day. (Content edited in code for now.)</p></div>
 
       {/* Semester tabs */}
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -408,7 +499,7 @@ export default function AdminDashboard() {
     if (tab === "cohort") return <CohortTab cohorts={cohorts} active={active} onRefresh={fetchAll} onSelect={setActiveCohortId} />;
     if (tab === "pods") return <PodsTab active={active} students={students} onRefresh={fetchAll} />;
     if (tab === "defense") return <DefenseTab active={active} adminId={adminId} onRefresh={fetchAll} />;
-    if (tab === "students") return <StudentsTab students={students} onRefresh={fetchAll} />;
+    if (tab === "students") return <StudentsTab students={students} cohorts={cohorts} onRefresh={fetchAll} />;
     return (
       <div className="space-y-5 max-w-lg">
         <h1 className="text-2xl font-black text-slate-800" style={{ fontFamily: "var(--font-playfair)" }}>Account</h1>
