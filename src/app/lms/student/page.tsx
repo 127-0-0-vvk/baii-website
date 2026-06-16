@@ -6,768 +6,353 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  LayoutDashboard, BookOpen, Users, Newspaper,
-  Library, UserCircle, LogOut, Bell, ChevronRight,
-  GraduationCap, Clock, Award, Zap, Cpu,
-  BookMarked, CalendarDays, FileText, Settings,
-  Mail, Phone, MapPin, School, Shield, Flame,
+  CalendarDays, Users, UserCircle, LogOut, Bell, Target, Radio, Hammer,
+  ShieldQuestion, Send, CheckCircle2, Clock, MessageSquare, Sparkles, School, Mail, Phone, MapPin,
 } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
 import { createClient } from "@/lib/supabase/client";
-import Pillar5Course from "@/components/lms/Pillar5Course";
+import {
+  getWeek, weeksInSemester, themesInSemester, semesterTitle, weekDates, ROLE_BLURB, type PodRole,
+} from "@/lib/ctc";
 
-/* ─── types ───────────────────────────────────────────────── */
-type Profile = {
-  id: string;
-  full_name: string;
-  email: string;
-  phone: string | null;
-  school: string | null;
-  city: string | null;
-  role: string;
+type Profile = { id: string; full_name: string; email: string; phone: string | null; school: string | null; city: string | null; role: string };
+type PodMember = { id: string; name: string; role: PodRole | null; you: boolean };
+type CtcData = {
+  enrolled: boolean;
+  pod?: { id: string; name: string; discord_url: string | null; charter: string | null; members: PodMember[] };
+  sem?: number; week?: number; yourRole?: PodRole | null;
+  submission?: { id: string; deliverable_url: string; notes: string | null; submitted_at: string } | null;
+  defense?: { outcome: string; feedback: string | null } | null;
+  semStart?: string | null;
 };
 
-type Tab = "dashboard" | "courses" | "cohorts" | "news" | "library" | "account";
-
-/* ─── nav items ───────────────────────────────────────────── */
+type Tab = "week" | "calendar" | "pod" | "account";
 const NAV = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "courses",   label: "Courses",   icon: BookOpen },
-  { id: "cohorts",   label: "Cohorts",   icon: Users },
-  { id: "news",      label: "News",      icon: Newspaper },
-  { id: "library",   label: "Library",   icon: Library },
+  { id: "week", label: "This Week", icon: Target },
+  { id: "calendar", label: "Calendar", icon: CalendarDays },
+  { id: "pod", label: "My Pod", icon: Users },
 ] as const;
 
-/* ─── avatar initials ────────────────────────────────────── */
-function Initials({ name, size = 40 }: { name: string; size?: number }) {
-  const parts = name.trim().split(" ");
-  const letters = parts.length >= 2
-    ? parts[0][0] + parts[parts.length - 1][0]
-    : parts[0].slice(0, 2);
-  return (
-    <div
-      className="flex items-center justify-center rounded-full font-bold text-white shrink-0"
-      style={{
-        width: size, height: size,
-        background: "linear-gradient(135deg, #1a3a6b, #c47d2a)",
-        fontSize: size * 0.36,
-      }}
-    >
-      {letters.toUpperCase()}
-    </div>
-  );
+const DAY_ICON = (label: string) =>
+  /kickoff/i.test(label) ? Radio : /doubt/i.test(label) ? ShieldQuestion : /submit|defend/i.test(label) ? Send : Hammer;
+
+function Initials({ name, size = 38 }: { name: string; size?: number }) {
+  const p = (name || "?").trim().split(" ");
+  const l = p.length >= 2 ? p[0][0] + p[p.length - 1][0] : (p[0] || "?").slice(0, 2);
+  return <div className="flex items-center justify-center rounded-full font-bold text-white shrink-0" style={{ width: size, height: size, background: "linear-gradient(135deg,#1a3a6b,#c47d2a)", fontSize: size * 0.36 }}>{l.toUpperCase()}</div>;
 }
 
-/* ─── empty state ─────────────────────────────────────────── */
-function EmptyState({ icon, title, sub }: { icon: React.ReactNode; title: string; sub: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
-        style={{ background: "rgba(26,58,107,0.06)" }}>
-        <div style={{ color: "#1a3a6b", opacity: 0.3 }}>{icon}</div>
-      </div>
-      <p className="font-semibold text-slate-700 mb-1">{title}</p>
-      <p className="text-sm text-slate-400 max-w-xs">{sub}</p>
-    </div>
-  );
-}
+/* ─── THIS WEEK ─────────────────────────────────────────────── */
+function ThisWeek({ data, profileId }: { data: CtcData; profileId: string }) {
+  const sem = data.sem ?? 1, week = data.week ?? 1;
+  const w = getWeek(sem, week);
+  const [link, setLink] = useState(data.submission?.deliverable_url ?? "");
+  const [notes, setNotes] = useState(data.submission?.notes ?? "");
+  const [submitting, setSubmitting] = useState(false);
+  const [saved, setSaved] = useState(!!data.submission);
 
-/* ─── stat card ───────────────────────────────────────────── */
-function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
+  if (!w) return <p className="text-slate-400 text-sm">This week&apos;s mission isn&apos;t available yet.</p>;
+
+  const submit = async () => {
+    if (!link.trim() || submitting || !data.pod) return;
+    setSubmitting(true);
+    await fetch("/api/student/ctc-submit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student_id: profileId, pod_id: data.pod.id, sem, week, deliverable_url: link, notes }) });
+    setSubmitting(false); setSaved(true);
+  };
+
   return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "#fff", boxShadow: "0 2px 16px rgba(0,0,0,0.06)", border: "1px solid rgba(0,0,0,0.05)" }}>
-      <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${color}15`, color }}>
-        {icon}
+    <div className="space-y-5">
+      {/* Mission header */}
+      <div className="rounded-2xl p-5 relative overflow-hidden" style={{ background: "linear-gradient(135deg,#1a3a6b,#235098)" }}>
+        <div className="absolute right-0 top-0 w-32 h-32 rounded-full blur-2xl" style={{ background: "rgba(196,125,42,0.3)", transform: "translate(30%,-30%)" }} />
+        <p className="text-white/60 text-[11px] font-bold uppercase tracking-widest">{semesterTitle(sem)} · Week {week} of 18</p>
+        <p className="text-white/70 text-xs mt-0.5">{w.theme}{w.rooted ? " · rooted inquiry" : ""}</p>
+        <h1 className="text-white font-black text-2xl mt-1 leading-tight" style={{ fontFamily: "var(--font-playfair)" }}>{w.title}</h1>
+        <p className="text-white/85 text-sm mt-2">{w.objective}</p>
+        <div className="mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px]" style={{ background: "rgba(255,255,255,0.14)", color: "#e8be72" }}>
+          <Sparkles size={11} /> You gain: {w.gain}
+        </div>
+        {data.yourRole && (
+          <div className="mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] ml-2" style={{ background: "rgba(255,255,255,0.14)", color: "white" }}>
+            Your role this week: <b>{data.yourRole}</b>
+          </div>
+        )}
       </div>
+
+      {/* 5-day plan */}
       <div>
-        <p className="text-2xl font-black" style={{ color: "#1a3a6b", fontFamily: "var(--font-playfair)" }}>{value}</p>
-        <p className="text-xs text-slate-400 mt-0.5">{label}</p>
-      </div>
-    </div>
-  );
-}
-
-/* ─── DASHBOARD tab ───────────────────────────────────────── */
-type DashboardData = {
-  coursesCount: number;
-  courses: { code: string; title: string; track: string; lessonsDone: number; weeksDone: number; weeksWithContent: number }[];
-  lessonsCompleted: number;
-  hours: number;
-  certificates: number;
-  streak: { current: number; best: number };
-  weeksCompleted: number;
-  avgScore: number | null;
-  upcoming: { label: string; sub: string }[];
-  badges: { id: string; emoji: string; label: string; earned: boolean; hint: string }[];
-};
-
-function DashboardTab({ profile, onGoToCourses }: { profile: Profile; onGoToCourses: () => void }) {
-  const first = profile.full_name?.split(" ")[0] ?? "Student";
-  const [d, setD] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch(`/api/student/dashboard?student_id=${profile.id}`)
-      .then(r => r.json()).then(setD).catch(() => {}).finally(() => setLoading(false));
-  }, [profile.id]);
-
-  return (
-    <div className="space-y-6">
-      {/* Welcome banner */}
-      <div className="rounded-2xl p-5 relative overflow-hidden" style={{ background: "linear-gradient(135deg, #1a3a6b 0%, #235098 100%)" }}>
-        <div className="absolute right-0 top-0 w-32 h-32 rounded-full blur-2xl pointer-events-none" style={{ background: "rgba(196,125,42,0.25)", transform: "translate(30%,-30%)" }} />
-        <div className="flex items-start justify-between relative">
-          <div>
-            <p className="text-white/60 text-xs mb-1">Welcome back 👋</p>
-            <h2 className="text-white font-black text-xl mb-1" style={{ fontFamily: "var(--font-playfair)" }}>Hi, {first}!</h2>
-            <p className="text-white/60 text-xs">Ready to build India&apos;s future?</p>
-            {profile.school && (
-              <div className="mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1" style={{ background: "rgba(255,255,255,0.12)" }}>
-                <School size={11} className="text-white/70" />
-                <span className="text-white/80 text-[11px]">{profile.school}</span>
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">This week&apos;s rhythm</p>
+        <div className="space-y-2">
+          {w.days.map((d) => {
+            const Icon = DAY_ICON(d.label);
+            return (
+              <div key={d.day} className="flex items-start gap-3 p-3.5 rounded-2xl bg-white" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.05)" }}>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: d.live ? "rgba(220,38,38,0.1)" : "rgba(26,58,107,0.08)", color: d.live ? "#dc2626" : "#1a3a6b" }}>
+                  <Icon size={16} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-700">{d.day} · {d.label}</span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: d.live ? "#fef2f2" : "#f1f5f9", color: d.live ? "#dc2626" : "#64748b" }}>{d.live ? "LIVE" : "SUPPORT"}</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{d.text}</p>
+                </div>
               </div>
-            )}
-          </div>
-          {/* Streak */}
-          {d && d.streak.current > 0 && (
-            <div className="flex flex-col items-center rounded-2xl px-3 py-2" style={{ background: "rgba(255,255,255,0.12)" }}>
-              <Flame size={20} style={{ color: "#fb923c" }} />
-              <p className="text-white font-black text-lg leading-none mt-0.5">{d.streak.current}</p>
-              <p className="text-white/60 text-[9px] uppercase tracking-wider">day streak</p>
-            </div>
-          )}
+            );
+          })}
         </div>
       </div>
 
-      {/* Stats */}
-      <div>
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Your Progress</p>
-        <div className="grid grid-cols-3 gap-3">
-          <StatCard icon={<BookOpen size={18} />} label="Courses" value={loading ? "…" : String(d?.coursesCount ?? 0)} color="#1a3a6b" />
-          <StatCard icon={<Clock size={18} />} label="Hours" value={loading ? "…" : String(d?.hours ?? 0)} color="#c47d2a" />
-          <StatCard icon={<Award size={18} />} label="Certs" value={loading ? "…" : String(d?.certificates ?? 0)} color="#4a9fd4" />
-        </div>
+      {/* Deliverable */}
+      <div className="rounded-2xl p-4 bg-white" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.05)" }}>
+        <p className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: "#c47d2a" }}>Interactive deliverable</p>
+        <p className="text-sm text-slate-700">{w.deliverable}</p>
       </div>
 
-      {/* Milestones / badges */}
-      {d && d.badges.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Milestones</p>
-          <div className="grid grid-cols-3 gap-2.5">
-            {d.badges.map(b => (
-              <div key={b.id} className="rounded-2xl p-3 flex flex-col items-center text-center"
-                style={{ background: b.earned ? "#fff" : "#f8fafc", border: b.earned ? "1.5px solid #fde68a" : "1px dashed #e2e8f0", boxShadow: b.earned ? "0 2px 12px rgba(245,158,11,0.12)" : "none" }}>
-                <span className="text-2xl mb-1" style={{ filter: b.earned ? "none" : "grayscale(1)", opacity: b.earned ? 1 : 0.4 }}>{b.emoji}</span>
-                <p className="text-[11px] font-bold leading-tight" style={{ color: b.earned ? "#1a3a6b" : "#94a3b8" }}>{b.label}</p>
-                {!b.earned && <p className="text-[9px] text-slate-300 mt-0.5 leading-tight">{b.hint}</p>}
-                {b.earned && <span className="text-[9px] font-bold mt-1 px-1.5 py-0.5 rounded-full" style={{ background: "#fef3c7", color: "#b45309" }}>Earned</span>}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Defense questions */}
+      <div className="rounded-2xl p-4" style={{ background: "rgba(220,38,38,0.04)", border: "1px solid rgba(220,38,38,0.15)" }}>
+        <div className="flex items-center gap-2 mb-2"><ShieldQuestion size={14} style={{ color: "#dc2626" }} /><p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "#dc2626" }}>Friday defense — prepare answers</p></div>
+        <ul className="space-y-1.5">
+          {w.defense.map((q, i) => <li key={i} className="text-sm text-slate-700 flex gap-2"><span className="font-bold" style={{ color: "#dc2626" }}>{i + 1}.</span> {q}</li>)}
+        </ul>
+        <p className="text-[11px] text-slate-400 mt-2">The defense is the assessment — a polished submission earns nothing on its own.</p>
+      </div>
 
-      {/* Enrolled courses with progress */}
-      <div>
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">My Courses</p>
-        {loading ? (
-          <div className="rounded-2xl p-6 flex justify-center" style={{ background: "#f8fafc" }}>
-            <div className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#1a3a6b", borderTopColor: "transparent" }} />
+      {/* Submit */}
+      <div className="rounded-2xl p-4 bg-white" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.05)" }}>
+        <p className="text-[11px] font-bold uppercase tracking-widest mb-2 text-slate-500">Submit your pod&apos;s deliverable</p>
+        {data.defense ? (
+          <div className="rounded-xl p-3" style={{ background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+            <p className="text-sm font-bold" style={{ color: "#15803d" }}>Defended — {data.defense.outcome}</p>
+            {data.defense.feedback && <p className="text-xs text-slate-600 mt-1">{data.defense.feedback}</p>}
           </div>
-        ) : d && d.courses.length > 0 ? (
+        ) : (
+          <>
+            <input value={link} onChange={(e) => { setLink(e.target.value); setSaved(false); }} placeholder="Link to your recorded deliverable (Drive, YouTube, Loom…)"
+              className="w-full rounded-xl px-3.5 py-2.5 text-sm border border-slate-200 bg-slate-50 text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-slate-400 mb-2" />
+            <textarea value={notes} onChange={(e) => { setNotes(e.target.value); setSaved(false); }} placeholder="Notes for the lecturer (optional)" rows={2}
+              className="w-full rounded-xl px-3.5 py-2.5 text-sm border border-slate-200 bg-slate-50 text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-slate-400 resize-none mb-2" />
+            <button onClick={submit} disabled={!link.trim() || submitting} className="w-full py-3 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 disabled:opacity-40" style={{ background: "linear-gradient(135deg,#1a3a6b,#235098)" }}>
+              {submitting ? "Saving…" : saved ? <><CheckCircle2 size={15} /> Submitted — update anytime before defense</> : <><Send size={15} /> Submit deliverable</>}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── CALENDAR ──────────────────────────────────────────────── */
+function CalendarTab({ data }: { data: CtcData }) {
+  const sem = data.sem ?? 1, week = data.week ?? 1;
+  const start = data.semStart ? new Date(data.semStart + "T00:00:00") : null;
+  const fmt = (d: Date) => d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  return (
+    <div className="space-y-5">
+      <div><h1 className="text-xl font-black text-slate-800" style={{ fontFamily: "var(--font-playfair)" }}>{semesterTitle(sem)}</h1><p className="text-slate-400 text-sm mt-0.5">18 weeks · you are on Week {week}</p></div>
+      {themesInSemester(sem).map((t) => (
+        <div key={t.theme}>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">{t.theme}</p>
           <div className="space-y-2">
-            {d.courses.map(c => {
-              const isEnergy = c.track === "energy", isSemi = c.track === "semiconductor";
-              const color = isEnergy ? "#c47d2a" : isSemi ? "#4a9fd4" : "#1a3a6b";
+            {t.weeks.map((wn) => {
+              const w = getWeek(sem, wn); if (!w) return null;
+              const current = wn === week, past = wn < week;
+              const dates = start ? weekDates(start, wn) : null;
               return (
-                <button key={c.code} onClick={onGoToCourses}
-                  className="w-full text-left flex items-center gap-4 p-4 rounded-2xl hover:bg-slate-50 transition-colors" style={{ background: "#fff", boxShadow: "0 1px 8px rgba(0,0,0,0.05)" }}>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${color}15`, color }}>
-                    {isEnergy ? <Zap size={18} /> : isSemi ? <Cpu size={18} /> : <span className="text-base">🧠</span>}
-                  </div>
+                <div key={wn} className="flex items-center gap-3 p-3 rounded-2xl bg-white" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.04)", opacity: past ? 0.7 : 1, border: current ? "1.5px solid #1a3a6b" : "1px solid transparent" }}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-xs font-black" style={{ background: current ? "#1a3a6b" : "#f1f5f9", color: current ? "white" : "#94a3b8" }}>{wn}</div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-slate-700 text-sm truncate">{c.title}</p>
-                    <p className="text-xs text-slate-400">{c.lessonsDone} lessons done · {c.weeksDone} week{c.weeksDone !== 1 ? "s" : ""} complete</p>
+                    <p className="text-sm font-semibold text-slate-700 truncate">{w.title}</p>
+                    {dates ? <p className="text-[11px] text-slate-400">{fmt(dates.mon)} – {fmt(dates.fri)} · defend Fri</p> : <p className="text-[11px] text-slate-400 truncate">{w.objective}</p>}
                   </div>
-                  <ChevronRight size={14} className="text-slate-300 shrink-0" />
-                </button>
+                  {current && <span className="text-[10px] font-bold px-2 py-1 rounded-full" style={{ background: "rgba(26,58,107,0.1)", color: "#1a3a6b" }}>This week</span>}
+                  {past && <CheckCircle2 size={15} className="text-green-400 shrink-0" />}
+                </div>
               );
             })}
           </div>
-        ) : (
-          <div className="rounded-2xl p-5 text-center" style={{ background: "#f8fafc", border: "1px dashed #e2e8f0" }}>
-            <BookOpen size={22} className="mx-auto mb-2 text-slate-300" />
-            <p className="text-sm text-slate-400">No courses assigned yet</p>
-          </div>
-        )}
-      </div>
-
-      {/* Upcoming */}
-      <div>
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Upcoming</p>
-        {d && d.upcoming.length > 0 ? (
-          <div className="space-y-2">
-            {d.upcoming.map((u, i) => (
-              <button key={i} onClick={onGoToCourses}
-                className="w-full text-left flex items-center gap-4 p-4 rounded-2xl hover:bg-slate-50 transition-colors" style={{ background: "#fff", boxShadow: "0 1px 8px rgba(0,0,0,0.05)" }}>
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(26,58,107,0.1)", color: "#1a3a6b" }}>
-                  <CalendarDays size={18} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-slate-700 text-sm truncate">{u.label}</p>
-                  <p className="text-xs text-slate-400">{u.sub}</p>
-                </div>
-                <span className="text-[11px] font-bold" style={{ color: "#1a3a6b" }}>Start →</span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-2xl p-5 text-center" style={{ background: "#f8fafc", border: "1px dashed #e2e8f0" }}>
-            <CalendarDays size={24} className="mx-auto mb-2 text-slate-300" />
-            <p className="text-sm text-slate-400">{loading ? "Loading…" : "Nothing scheduled yet"}</p>
-            <p className="text-xs text-slate-300 mt-0.5">Your next lessons will appear here</p>
-          </div>
-        )}
-      </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-/* ─── COURSES tab ─────────────────────────────────────────── */
-type MyCourse = {
-  enrollment_id: string;
-  cohort_name: string | null;
-  code: string | null;
-  title: string | null;
-  track: string | null;
-  duration: string | null;
-  member_count: number;
-  started: boolean;
-};
-
-// P5-C6 → y6, P5-C12 → y12
-const codeToYearId = (code: string) => "y" + code.replace("P5-C", "");
-
-const YEAR_META: Record<string, { color: string; tagline: string }> = {
-  y6:  { color: "#2563EB", tagline: "Can you tell fact from fiction?" },
-  y7:  { color: "#059669", tagline: "What are the numbers actually saying?" },
-  y8:  { color: "#DC2626", tagline: "Can you argue both sides — and win?" },
-  y9:  { color: "#7C3AED", tagline: "Can you find the truth yourself?" },
-  y10: { color: "#B45309", tagline: "Can you solve a problem with no textbook answer?" },
-  y11: { color: "#15803D", tagline: "Can you move a room?" },
-  y12: { color: "#1E3A5F", tagline: "Can you build something that exists in the world?" },
-};
-
-function CoursesTab({ studentId }: { studentId: string }) {
-  const [openCourse, setOpenCourse] = useState<"pillar5" | null>(null);
-  const [courses, setCourses] = useState<MyCourse[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch(`/api/student/my-courses?student_id=${studentId}`)
-      .then(r => r.json())
-      .then(d => setCourses(d.courses ?? []))
-      .catch(() => setCourses([]))
-      .finally(() => setLoading(false));
-  }, [studentId]);
-
-  const pillar5 = courses.filter(c => c.track === "pillar5" && c.code);
-  const allowedYearIds = pillar5.map(c => codeToYearId(c.code!));
-  const started = pillar5.length > 0 && pillar5.every(c => c.started);
-
-  if (openCourse === "pillar5") {
-    const code = pillar5[0]?.code ?? "P5-C6";
-    return <Pillar5Course onBack={() => setOpenCourse(null)} allowedYearIds={allowedYearIds} started={started} studentId={studentId} courseCode={code} />;
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#1a3a6b", borderTopColor: "transparent" }} />
-      </div>
-    );
-  }
-
+/* ─── POD ───────────────────────────────────────────────────── */
+function PodTab({ data }: { data: CtcData }) {
+  const pod = data.pod;
+  if (!pod) return null;
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="font-black text-slate-800 text-lg mb-1" style={{ fontFamily: "var(--font-playfair)" }}>My Courses</h2>
-        <p className="text-xs text-slate-400 mb-5">Courses assigned by your BAII cohort admin</p>
+    <div className="space-y-5">
+      <div className="rounded-2xl p-5" style={{ background: "linear-gradient(135deg,#1a3a6b,#235098)" }}>
+        <p className="text-white/60 text-[11px] font-bold uppercase tracking-widest">Your pod</p>
+        <h1 className="text-white font-black text-2xl mt-0.5" style={{ fontFamily: "var(--font-playfair)" }}>{pod.name}</h1>
+        {pod.discord_url && <a href={pod.discord_url} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold" style={{ background: "rgba(255,255,255,0.15)", color: "white" }}><MessageSquare size={12} /> Open Discord channel</a>}
       </div>
-
-      {courses.length === 0 ? (
-        <EmptyState
-          icon={<BookOpen size={32} />}
-          title="No courses assigned yet"
-          sub="Once the BAII team assigns you a course, it will appear here ready to start."
-        />
-      ) : (
-        <div className="space-y-3">
-          {pillar5.map(c => {
-            const yearId = codeToYearId(c.code!);
-            const meta = YEAR_META[yearId] ?? { color: "#1a3a6b", tagline: "" };
-            const classNo = c.code!.replace("P5-C", "");
-            return (
-              <motion.button
-                key={c.enrollment_id}
-                whileHover={{ scale: 1.01, y: -2 }}
-                whileTap={{ scale: 0.99 }}
-                onClick={() => setOpenCourse("pillar5")}
-                className="w-full text-left rounded-2xl overflow-hidden shadow-sm border border-slate-100"
-                style={{ background: "#fff" }}
-              >
-                {/* Card header */}
-                <div className="p-5 relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${meta.color} 0%, ${meta.color}cc 100%)` }}>
-                  <div className="absolute right-0 top-0 w-24 h-24 rounded-full blur-2xl opacity-25 pointer-events-none" style={{ background: "#fff", transform: "translate(30%,-30%)" }} />
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold text-white/70 uppercase tracking-widest">Pillar 5 · Class {classNo}</span>
-                      <h3 className="text-white font-black text-lg mt-0.5 leading-tight" style={{ fontFamily: "var(--font-playfair)" }}>
-                        {c.title}
-                      </h3>
-                      <p className="text-white/80 text-xs mt-1 italic">&ldquo;{meta.tagline}&rdquo;</p>
-                    </div>
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ml-3" style={{ background: "rgba(255,255,255,0.2)" }}>
-                      <span className="text-base font-black text-white">C{classNo}</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 mt-3">
-                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(255,255,255,0.2)", color: "white" }}>{c.duration ?? "35 weeks"}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(255,255,255,0.2)", color: "white" }}>5 Modules</span>
-                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: c.started ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.18)", color: c.started ? meta.color : "white" }}>
-                      {c.started ? <><GraduationCap size={10} /> Cohort live</> : <>⏳ Awaiting cohort start</>}
-                    </span>
-                  </div>
-                </div>
-                {/* Card body */}
-                <div className="px-5 py-4 flex items-center justify-between">
-                  <span className="text-xs text-slate-400">{c.started ? "Tap to enter your lessons" : "Tap to preview the curriculum"}</span>
-                  <span className="flex items-center gap-1 text-xs font-bold" style={{ color: meta.color }}>
-                    {c.started ? "Start" : "Preview"} <ChevronRight size={13} />
-                  </span>
-                </div>
-              </motion.button>
-            );
-          })}
-
-          {/* Any non-Pillar-5 assigned courses (energy / semiconductor) */}
-          {courses.filter(c => c.track !== "pillar5").map(c => (
-            <div key={c.enrollment_id} className="rounded-2xl p-4 flex items-center gap-3 bg-white border border-slate-100 shadow-sm">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: c.track === "energy" ? "rgba(196,125,42,0.1)" : "rgba(74,159,212,0.1)", color: c.track === "energy" ? "#c47d2a" : "#4a9fd4" }}>
-                {c.track === "energy" ? <Zap size={18} /> : <Cpu size={18} />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-slate-700 text-sm truncate">{c.title}</p>
-                <p className="text-xs text-slate-400">{c.code} · {c.duration}</p>
-              </div>
-              <span className="text-[10px] font-semibold px-2 py-1 rounded-full" style={{ background: "#f1f5f9", color: "#94a3b8" }}>Coming soon</span>
+      <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.05)" }}>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-4 pt-3 pb-2">Members · roles rotate weekly</p>
+        <div className="divide-y divide-slate-50">
+          {pod.members.map((m) => (
+            <div key={m.id} className="flex items-center gap-3 px-4 py-3">
+              <Initials name={m.name} size={36} />
+              <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-slate-700 truncate">{m.name}{m.you && <span className="text-[10px] text-slate-400 ml-1">(you)</span>}</p>{m.role && <p className="text-[11px] text-slate-400">{ROLE_BLURB[m.role]}</p>}</div>
+              {m.role && <span className="text-[10px] font-bold px-2 py-1 rounded-full shrink-0" style={{ background: "rgba(26,58,107,0.08)", color: "#1a3a6b" }}>{m.role}</span>}
             </div>
           ))}
+        </div>
+      </div>
+      {pod.charter && (
+        <div className="bg-white rounded-2xl p-4" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.05)" }}>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Pod charter</p>
+          <p className="text-sm text-slate-600 whitespace-pre-line leading-relaxed">{pod.charter}</p>
         </div>
       )}
     </div>
   );
 }
 
-/* ─── COHORTS tab ─────────────────────────────────────────── */
-function CohortsTab() {
-  return (
-    <div>
-      <h2 className="font-black text-slate-800 text-lg mb-5" style={{ fontFamily: "var(--font-playfair)" }}>My Cohorts</h2>
-      <EmptyState
-        icon={<Users size={32} />}
-        title="Not in a cohort yet"
-        sub="You'll be placed in a cohort after your enrollment is confirmed by the BAII team."
-      />
-    </div>
-  );
-}
-
-/* ─── NEWS tab ────────────────────────────────────────────── */
-function NewsTab() {
-  return (
-    <div>
-      <h2 className="font-black text-slate-800 text-lg mb-5" style={{ fontFamily: "var(--font-playfair)" }}>News & Updates</h2>
-      <EmptyState
-        icon={<Newspaper size={32} />}
-        title="No announcements yet"
-        sub="Programme updates, cohort news, and BAII announcements will appear here."
-      />
-    </div>
-  );
-}
-
-/* ─── LIBRARY tab ─────────────────────────────────────────── */
-function LibraryTab() {
-  return (
-    <div>
-      <h2 className="font-black text-slate-800 text-lg mb-5" style={{ fontFamily: "var(--font-playfair)" }}>Resource Library</h2>
-      <div className="grid grid-cols-2 gap-3 mb-5">
-        {[
-          { icon: <BookMarked size={20} />, label: "Study Materials", count: 0, color: "#1a3a6b" },
-          { icon: <FileText size={20} />, label: "Lab Reports", count: 0, color: "#c47d2a" },
-        ].map((item) => (
-          <div key={item.label} className="rounded-2xl p-4" style={{ background: "#fff", boxShadow: "0 1px 8px rgba(0,0,0,0.05)" }}>
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3" style={{ background: `${item.color}12`, color: item.color }}>
-              {item.icon}
-            </div>
-            <p className="text-xs font-semibold text-slate-600">{item.label}</p>
-            <p className="text-xl font-black mt-1" style={{ color: item.color, fontFamily: "var(--font-playfair)" }}>{item.count}</p>
-          </div>
-        ))}
-      </div>
-      <EmptyState
-        icon={<Library size={32} />}
-        title="Library is empty"
-        sub="Your study materials, lab reports and resources will be available here once your course begins."
-      />
-    </div>
-  );
-}
-
-/* ─── ACCOUNT tab ─────────────────────────────────────────── */
+/* ─── ACCOUNT ───────────────────────────────────────────────── */
 function AccountTab({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
+  const info = [
+    { icon: <Mail size={15} />, label: "Email", value: profile.email },
+    { icon: <Phone size={15} />, label: "Phone", value: profile.phone || "Not set" },
+    { icon: <School size={15} />, label: "School", value: profile.school || "Not set" },
+    { icon: <MapPin size={15} />, label: "City", value: profile.city || "Not set" },
+  ];
   return (
     <div className="space-y-5">
-      {/* Profile hero */}
-      <div className="rounded-2xl p-6 text-center" style={{ background: "linear-gradient(135deg, #1a3a6b 0%, #235098 100%)" }}>
-        <div className="flex justify-center mb-3">
-          <Initials name={profile.full_name || "Student"} size={72} />
-        </div>
+      <div className="rounded-2xl p-6 text-center" style={{ background: "linear-gradient(135deg,#1a3a6b,#235098)" }}>
+        <div className="flex justify-center mb-3"><Initials name={profile.full_name || "Student"} size={72} /></div>
         <h2 className="text-white font-black text-xl" style={{ fontFamily: "var(--font-playfair)" }}>{profile.full_name}</h2>
         <p className="text-white/60 text-sm mt-0.5">{profile.email}</p>
-        <div className="mt-3 flex justify-center">
-          <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold" style={{ background: "rgba(196,125,42,0.25)", color: "#e8be72" }}>
-            <Shield size={10} />
-            {profile.role === "admin" ? "Admin" : "Student"}
-          </span>
-        </div>
       </div>
-
-      {/* Details */}
-      <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-5 pt-4 pb-2">Personal Details</p>
-        {[
-          { icon: <Mail size={15} />, label: "Email", value: profile.email },
-          { icon: <Phone size={15} />, label: "Phone", value: profile.phone || "Not set" },
-          { icon: <School size={15} />, label: "School", value: profile.school || "Not set" },
-          { icon: <MapPin size={15} />, label: "City", value: profile.city || "Not set" },
-        ].map((item, i, arr) => (
-          <div key={item.label}>
-            <div className="flex items-center gap-4 px-5 py-3.5">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(26,58,107,0.07)", color: "#1a3a6b" }}>
-                {item.icon}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-slate-400 uppercase tracking-wider">{item.label}</p>
-                <p className={`text-sm font-medium truncate ${item.value === "Not set" ? "text-slate-300 italic" : "text-slate-700"}`}>{item.value}</p>
-              </div>
-            </div>
-            {i < arr.length - 1 && <Separator className="ml-16" />}
+      <div className="rounded-2xl overflow-hidden bg-white" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.05)" }}>
+        {info.map((it, i) => (
+          <div key={it.label} className="flex items-center gap-4 px-5 py-3.5" style={{ borderTop: i ? "1px solid #f1f5f9" : "none" }}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(26,58,107,0.07)", color: "#1a3a6b" }}>{it.icon}</div>
+            <div><p className="text-[10px] text-slate-400 uppercase tracking-wider">{it.label}</p><p className={`text-sm font-medium ${it.value === "Not set" ? "text-slate-300 italic" : "text-slate-700"}`}>{it.value}</p></div>
           </div>
         ))}
       </div>
-
-      {/* Certificates */}
-      <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-5 pt-4 pb-2">Certificates</p>
-        <div className="px-5 pb-5 pt-2 text-center" style={{ borderTop: "1px solid #f1f5f9" }}>
-          <Award size={28} className="mx-auto mb-2" style={{ color: "rgba(26,58,107,0.15)" }} />
-          <p className="text-sm text-slate-400 font-medium">No certificates yet</p>
-          <p className="text-xs text-slate-300 mt-0.5">Earned certificates will appear here after completing a course.</p>
-        </div>
-      </div>
-
-      {/* Settings */}
-      <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-5 pt-4 pb-2">Account</p>
-        <button className="flex items-center gap-4 px-5 py-3.5 w-full hover:bg-slate-50 transition-colors">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(26,58,107,0.07)", color: "#1a3a6b" }}>
-            <Settings size={15} />
-          </div>
-          <span className="text-sm font-medium text-slate-700 flex-1 text-left">Change Password</span>
-          <ChevronRight size={14} className="text-slate-300" />
-        </button>
-        <Separator className="ml-16" />
-        <button
-          onClick={onLogout}
-          className="flex items-center gap-4 px-5 py-3.5 w-full hover:bg-red-50 transition-colors group"
-        >
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center group-hover:bg-red-100 transition-colors" style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444" }}>
-            <LogOut size={15} />
-          </div>
-          <span className="text-sm font-medium text-red-500 flex-1 text-left">Sign Out</span>
-        </button>
-      </div>
-
-      <p className="text-center text-xs text-slate-300 pb-2">BAII Student Portal · v1.0</p>
+      <button onClick={onLogout} className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-medium text-red-500 bg-white" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.05)" }}><LogOut size={16} /> Sign Out</button>
     </div>
   );
 }
 
-/* ─── MAIN COMPONENT ──────────────────────────────────────── */
+/* ─── EMPTY STATE ───────────────────────────────────────────── */
+function NotEnrolled() {
+  return (
+    <div className="flex flex-col items-center justify-center text-center py-24 px-6">
+      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ background: "rgba(26,58,107,0.06)" }}><Clock size={30} style={{ color: "#1a3a6b", opacity: 0.4 }} /></div>
+      <p className="font-bold text-slate-700 mb-1">Your programme is being set up</p>
+      <p className="text-sm text-slate-400 max-w-xs">You&apos;ll see your pod, your weekly mission, and the calendar here once the BAII team places you in a pod. Hang tight!</p>
+    </div>
+  );
+}
+
+/* ─── MAIN ──────────────────────────────────────────────────── */
 export default function StudentDashboard() {
   const router = useRouter();
   const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [data, setData] = useState<CtcData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+  const [tab, setTab] = useState<Tab>("week");
 
   useEffect(() => {
-    const sb = createClient();
-    supabaseRef.current = sb;
-
+    const supabase = createClient();
+    supabaseRef.current = supabase;
     const loadProfile = async (userId: string) => {
-      const { data: p } = await sb
-        .from("profiles")
-        .select("id, full_name, email, phone, school, city, role")
-        .eq("id", userId)
-        .single();
-
-      if (!p) {
-        // No profile row yet — use session metadata as fallback
-        const { data: { session } } = await sb.auth.getSession();
-        if (!session) { window.location.href = "/lms"; return; }
-        setProfile({
-          id: userId,
-          full_name: session.user.user_metadata?.full_name || "Student",
-          email: session.user.email || "",
-          phone: null, school: null, city: null, role: "student",
-        });
-        setLoading(false);
-        return;
-      }
-
-      if (p.role === "admin") { window.location.href = "/lms/admin"; return; }
-      setProfile(p as Profile);
+      const { data: p } = await supabase.from("profiles").select("id, full_name, email, phone, school, city, role").eq("id", userId).single();
+      if (p?.role === "admin") { window.location.href = "/lms/admin"; return; }
+      const prof = (p as Profile) ?? { id: userId, full_name: "Student", email: "", phone: null, school: null, city: null, role: "student" };
+      setProfile(prof);
+      try { const r = await fetch(`/api/student/ctc?student_id=${userId}`); setData(await r.json()); } catch { setData({ enrolled: false }); }
       setLoading(false);
     };
-
     async function init() {
-      // 1. Check URL for tokens passed from login page
       const params = new URLSearchParams(window.location.search);
-      const at = params.get("at");
-      const rt = params.get("rt");
-
+      const at = params.get("at"), rt = params.get("rt");
       if (at && rt) {
-        // Remove tokens from URL immediately
         window.history.replaceState({}, "", "/lms/student");
-        const { data, error } = await sb.auth.setSession({ access_token: at, refresh_token: rt });
-        if (error || !data.session?.user) { window.location.href = "/lms"; return; }
-        loadProfile(data.session.user.id);
-        return;
+        const { data: d, error } = await supabase.auth.setSession({ access_token: at, refresh_token: rt });
+        if (error || !d.session?.user) { window.location.href = "/lms"; return; }
+        loadProfile(d.session.user.id); return;
       }
-
-      // 2. Fallback: check existing localStorage session
-      const { data: { session } } = await sb.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) { window.location.href = "/lms"; return; }
       loadProfile(session.user.id);
     }
-
     init();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleLogout = async () => {
-    await supabaseRef.current?.auth.signOut();
-    router.push("/lms");
-  };
+  const handleLogout = async () => { await supabaseRef.current?.auth.signOut(); router.push("/lms"); };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#f8fafc" }}>
-        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#1a3a6b", borderTopColor: "transparent" }} />
-      </div>
-    );
-  }
+  if (loading) return <div className="min-h-screen flex items-center justify-center" style={{ background: "#f8fafc" }}><div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#1a3a6b", borderTopColor: "transparent" }} /></div>;
+  if (!profile) return null;
 
-  const renderContent = () => {
-    if (!profile) return null;
-    const views: Record<Tab, React.ReactNode> = {
-      dashboard: <DashboardTab profile={profile} onGoToCourses={() => setActiveTab("courses")} />,
-      courses:   <CoursesTab studentId={profile.id} />,
-      cohorts:   <CohortsTab />,
-      news:      <NewsTab />,
-      library:   <LibraryTab />,
-      account:   <AccountTab profile={profile} onLogout={handleLogout} />,
-    };
-    return (
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-        >
-          {views[activeTab]}
-        </motion.div>
-      </AnimatePresence>
-    );
+  const enrolled = !!data?.enrolled;
+  const renderTab = () => {
+    if (tab === "account") return <AccountTab profile={profile} onLogout={handleLogout} />;
+    if (!enrolled || !data) return <NotEnrolled />;
+    if (tab === "week") return <ThisWeek data={data} profileId={profile.id} />;
+    if (tab === "calendar") return <CalendarTab data={data} />;
+    if (tab === "pod") return <PodTab data={data} />;
+    return null;
   };
 
   return (
     <div className="min-h-screen flex" style={{ background: "#f1f5f9" }}>
-
-      {/* ── DESKTOP SIDEBAR ──────────────────────────────── */}
-      <aside className="hidden lg:flex flex-col w-64 shrink-0 sticky top-0 h-screen"
-        style={{ background: "#fff", borderRight: "1px solid #e2e8f0" }}>
-        {/* Logo */}
+      {/* Desktop sidebar */}
+      <aside className="hidden lg:flex flex-col w-64 shrink-0 sticky top-0 h-screen bg-white" style={{ borderRight: "1px solid #e2e8f0" }}>
         <div className="px-6 py-5 flex items-center gap-3" style={{ borderBottom: "1px solid #f1f5f9" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/baii-logo.svg" alt="BAII" style={{ width: 36, height: "auto" }} />
-          <div>
-            <p className="font-bold text-sm" style={{ color: "#1a3a6b" }}>BAII Portal</p>
-            <p className="text-[10px] text-slate-400">Student Dashboard</p>
-          </div>
+          <div><p className="font-bold text-sm" style={{ color: "#1a3a6b" }}>BAII Studio</p><p className="text-[10px] text-slate-400">Critical Thinking</p></div>
         </div>
-
-        {/* Profile mini */}
-        <div className="px-4 py-4 mx-3 mt-4 rounded-2xl" style={{ background: "#f8fafc" }}>
-          <div className="flex items-center gap-3">
-            <Initials name={profile?.full_name || "S"} size={38} />
-            <div className="min-w-0">
-              <p className="font-semibold text-sm text-slate-700 truncate">{profile?.full_name}</p>
-              <p className="text-[10px] text-slate-400 truncate">{profile?.email}</p>
-            </div>
-          </div>
+        <div className="px-4 py-4 mx-3 mt-4 rounded-2xl flex items-center gap-3" style={{ background: "#f8fafc" }}>
+          <Initials name={profile.full_name} size={38} />
+          <div className="min-w-0"><p className="font-semibold text-sm text-slate-700 truncate">{profile.full_name}</p>{data?.pod && <p className="text-[10px] text-slate-400 truncate">{data.pod.name}</p>}</div>
         </div>
-
-        {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {NAV.map(({ id, label, icon: Icon }) => {
-            const active = activeTab === id;
-            return (
-              <button
-                key={id}
-                onClick={() => setActiveTab(id as Tab)}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all"
-                style={{
-                  background: active ? "rgba(26,58,107,0.08)" : "transparent",
-                  color: active ? "#1a3a6b" : "#94a3b8",
-                }}
-              >
-                <Icon size={18} strokeWidth={active ? 2.2 : 1.8} />
-                {label}
-                {active && <div className="ml-auto w-1.5 h-1.5 rounded-full" style={{ background: "#c47d2a" }} />}
-              </button>
-            );
-          })}
+        <nav className="flex-1 px-3 py-4 space-y-1">
+          {NAV.map(({ id, label, icon: Icon }) => (
+            <button key={id} onClick={() => setTab(id as Tab)} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium" style={{ background: tab === id ? "rgba(26,58,107,0.08)" : "transparent", color: tab === id ? "#1a3a6b" : "#94a3b8" }}><Icon size={18} />{label}</button>
+          ))}
         </nav>
-
-        {/* Account + logout */}
         <div className="px-3 pb-4 space-y-1" style={{ borderTop: "1px solid #f1f5f9" }}>
-          <button
-            onClick={() => setActiveTab("account")}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all"
-            style={{
-              background: activeTab === "account" ? "rgba(26,58,107,0.08)" : "transparent",
-              color: activeTab === "account" ? "#1a3a6b" : "#94a3b8",
-            }}
-          >
-            <UserCircle size={18} />
-            Account
-          </button>
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-400 hover:bg-red-50 transition-all"
-          >
-            <LogOut size={18} />
-            Sign Out
-          </button>
+          <button onClick={() => setTab("account")} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium" style={{ background: tab === "account" ? "rgba(26,58,107,0.08)" : "transparent", color: tab === "account" ? "#1a3a6b" : "#94a3b8" }}><UserCircle size={18} /> Account</button>
+          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-400"><LogOut size={18} /> Sign Out</button>
         </div>
       </aside>
 
-      {/* ── MAIN AREA ─────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-h-screen min-w-0">
-
-        {/* ── TOP BAR ───────────────────────────────────── */}
-        <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-6 py-3.5"
-          style={{ background: "rgba(255,255,255,0.92)", backdropFilter: "blur(12px)", borderBottom: "1px solid #e2e8f0" }}>
-          {/* Mobile logo */}
+        <header className="sticky top-0 z-30 flex items-center justify-between px-4 md:px-6 py-3.5" style={{ background: "rgba(255,255,255,0.92)", backdropFilter: "blur(12px)", borderBottom: "1px solid #e2e8f0" }}>
           <div className="flex items-center gap-2 lg:hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/baii-logo.svg" alt="BAII" style={{ width: 30, height: "auto" }} />
-            <span className="font-bold text-sm" style={{ color: "#1a3a6b" }}>
-              {NAV.find(n => n.id === activeTab)?.label ?? "Dashboard"}
-            </span>
+            <span className="font-bold text-sm" style={{ color: "#1a3a6b" }}>{NAV.find((n) => n.id === tab)?.label ?? "Account"}</span>
           </div>
-
-          {/* Desktop title */}
-          <h1 className="hidden lg:block font-black text-lg" style={{ color: "#1a3a6b", fontFamily: "var(--font-playfair)" }}>
-            {activeTab === "account" ? "Account" : NAV.find(n => n.id === activeTab)?.label}
-          </h1>
-
-          {/* Right actions */}
+          <h1 className="hidden lg:block font-black text-lg" style={{ color: "#1a3a6b", fontFamily: "var(--font-playfair)" }}>{tab === "account" ? "Account" : NAV.find((n) => n.id === tab)?.label}</h1>
           <div className="flex items-center gap-2">
-            <button className="w-9 h-9 rounded-xl flex items-center justify-center relative" style={{ background: "#f1f5f9" }}>
-              <Bell size={16} style={{ color: "#64748b" }} />
-            </button>
-            <button
-              onClick={() => setActiveTab("account")}
-              className="w-9 h-9 rounded-xl overflow-hidden"
-            >
-              <Initials name={profile?.full_name || "S"} size={36} />
-            </button>
+            <button className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "#f1f5f9" }}><Bell size={16} style={{ color: "#64748b" }} /></button>
+            <button onClick={() => setTab("account")}><Initials name={profile.full_name} size={36} /></button>
           </div>
         </header>
 
-        {/* ── CONTENT ───────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto px-4 md:px-6 py-5"
-          style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}>
+        <main className="flex-1 overflow-y-auto px-4 md:px-6 py-5" style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}>
           <div className="max-w-2xl mx-auto lg:max-w-3xl">
-            {renderContent()}
+            <AnimatePresence mode="wait">
+              <motion.div key={tab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>{renderTab()}</motion.div>
+            </AnimatePresence>
           </div>
         </main>
 
-        {/* ── BOTTOM NAV (mobile + tablet) ──────────────── */}
-        <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around px-2"
-          style={{
-            background: "rgba(255,255,255,0.95)",
-            backdropFilter: "blur(16px)",
-            borderTop: "1px solid #e2e8f0",
-            paddingBottom: "env(safe-area-inset-bottom)",
-            height: "calc(64px + env(safe-area-inset-bottom))",
-          }}>
-          {NAV.map(({ id, label, icon: Icon }) => {
-            const active = activeTab === id;
-            return (
-              <button
-                key={id}
-                onClick={() => setActiveTab(id as Tab)}
-                className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all relative"
-                style={{ minWidth: 56 }}
-              >
-                {active && (
-                  <motion.div
-                    layoutId="nav-pill"
-                    className="absolute inset-0 rounded-xl"
-                    style={{ background: "rgba(26,58,107,0.07)" }}
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                  />
-                )}
-                <Icon
-                  size={20}
-                  strokeWidth={active ? 2.2 : 1.6}
-                  style={{ color: active ? "#1a3a6b" : "#94a3b8", position: "relative" }}
-                />
-                <span
-                  className="text-[10px] font-semibold relative"
-                  style={{ color: active ? "#1a3a6b" : "#94a3b8" }}
-                >
-                  {label}
-                </span>
-                {active && (
-                  <motion.div
-                    layoutId="nav-dot"
-                    className="absolute -top-1 w-1 h-1 rounded-full"
-                    style={{ background: "#c47d2a" }}
-                  />
-                )}
-              </button>
-            );
-          })}
-
+        {/* Mobile bottom nav */}
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around px-2" style={{ background: "rgba(255,255,255,0.95)", backdropFilter: "blur(16px)", borderTop: "1px solid #e2e8f0", paddingBottom: "env(safe-area-inset-bottom)", height: "calc(64px + env(safe-area-inset-bottom))" }}>
+          {[...NAV, { id: "account", label: "Account", icon: UserCircle }].map(({ id, label, icon: Icon }) => (
+            <button key={id} onClick={() => setTab(id as Tab)} className="flex flex-col items-center gap-1 px-3 py-2" style={{ minWidth: 56 }}>
+              <Icon size={20} strokeWidth={tab === id ? 2.3 : 1.7} style={{ color: tab === id ? "#1a3a6b" : "#94a3b8" }} />
+              <span className="text-[10px] font-semibold" style={{ color: tab === id ? "#1a3a6b" : "#94a3b8" }}>{label}</span>
+            </button>
+          ))}
         </nav>
       </div>
     </div>
