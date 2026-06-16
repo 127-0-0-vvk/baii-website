@@ -10,7 +10,8 @@ export async function POST(req: NextRequest) {
   );
 
   try {
-    const { full_name, email, password, phone, school, city } = await req.json();
+    const { full_name, email, password, phone, school, city, role: roleIn } = await req.json();
+    const role = roleIn === "tutor" ? "tutor" : "student";
 
     if (!full_name || !email || !password) {
       return NextResponse.json({ error: "Name, email and password are required." }, { status: 400 });
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
       email,
       password,
       email_confirm: true,
-      user_metadata: { full_name, role: "student" },
+      user_metadata: { full_name, role },
     });
 
     if (authError) {
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
       id: authData.user.id,
       email,
       full_name,
-      role: "student",
+      role,
       phone: phone ?? null,
       school: school ?? null,
       city: city ?? null,

@@ -12,6 +12,28 @@ export const ROLE_BLURB: Record<PodRole, string> = {
 };
 
 export const WEEKS_PER_SEM = 18;
+export const SEM_LENGTH_WEEKS = 20; // 18 active + 2 flex/showcase
+
+// In-app course catalogue (cohorts pick one or more of these). Add new courses here.
+export const COURSE_CATALOGUE = [
+  { code: "CTC", title: "Critical Thinking & Communication", years: 2, desc: "Mind → Think → Communicate → Decide & Build" },
+] as const;
+
+export function courseTitle(code: string): string {
+  return COURSE_CATALOGUE.find((c) => c.code === code)?.title ?? code;
+}
+
+// From a program start date (Monday of Sem 1 Wk 1), the start Monday of each semester.
+export function semesterStartDates(programStart: string): Record<number, string> {
+  const out: Record<number, string> = {};
+  const base = new Date(programStart + "T00:00:00");
+  for (let s = 1; s <= 4; s++) {
+    const d = new Date(base);
+    d.setDate(d.getDate() + (s - 1) * SEM_LENGTH_WEEKS * 7);
+    out[s] = d.toISOString().slice(0, 10);
+  }
+  return out;
+}
 
 export function getWeek(sem: number, week: number): CtcWeek | null {
   return CTC_CURRICULUM.find((w) => w.sem === sem && w.week === week) ?? null;

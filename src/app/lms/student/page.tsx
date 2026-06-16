@@ -120,7 +120,11 @@ function ThisWeek({ data, profileId }: { data: CtcData; profileId: string }) {
       {/* Submit */}
       <div className="rounded-2xl p-4 bg-white" style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.05)" }}>
         <p className="text-[11px] font-bold uppercase tracking-widest mb-2 text-slate-500">Submit your pod&apos;s deliverable</p>
-        {data.defense ? (
+        {!data.pod ? (
+          <div className="rounded-xl p-3" style={{ background: "#f8fafc", border: "1px dashed #e2e8f0" }}>
+            <p className="text-sm text-slate-500">You&apos;re enrolled, but not in a pod yet. Once your tutor places you in a pod, you&apos;ll submit your deliverable here.</p>
+          </div>
+        ) : data.defense ? (
           <div className="rounded-xl p-3" style={{ background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
             <p className="text-sm font-bold" style={{ color: "#15803d" }}>Defended — {data.defense.outcome}</p>
             {data.defense.feedback && <p className="text-xs text-slate-600 mt-1">{data.defense.feedback}</p>}
