@@ -6,7 +6,6 @@ import { motion, useScroll, useTransform } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChevronRight } from "lucide-react";
-import CourseSection from "./CourseSection";
 
 export default function LandingPage() {
   const [enrollHovered, setEnrollHovered] = useState(false);
@@ -173,9 +172,6 @@ export default function LandingPage() {
           </motion.div>
         </motion.div>
       </section>
-
-      {/* ── COURSE SECTION ───────────────────────────────────── */}
-      <CourseSection />
 
     </div>
   );
